@@ -1,0 +1,725 @@
+# Unified Platform docker-compose — orchestrates ALL services
+# Content-Aggregation (3) + Dedup + Rec + Backend (6) = 12 application services
+# Infrastructure: PostgreSQL (pgvector), Redis, Kafka, Zookeeper, MinIO
+
+services:
+
+  # ============================================================
+  # INFRASTRUCTURE
+  # ============================================================
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: skd-postgres
+    command: postgres -c max_connections=300
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-content_agg_db}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init-all.sh:/docker-entrypoint-initdb.d/init-all.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - skd-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: skd-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - skd-network
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: skd-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ["CMD-SHELL", "echo srvr | nc localhost 2181 | grep Mode"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - skd-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: skd-kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:39092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: BACKEND:PLAINTEXT,CONTENTAGG:PLAINTEXT,HOST:PLAINTEXT
+      KAFKA_LISTENERS: BACKEND://0.0.0.0:9092,CONTENTAGG://0.0.0.0:29092,HOST://0.0.0.0:39092
+      KAFKA_ADVERTISED_LISTENERS: BACKEND://kafka:9092,CONTENTAGG://kafka:29092,HOST://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: BACKEND
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+    networks:
+      - skd-network
+
+  minio:
+    image: minio/minio:latest
+    container_name: skd-minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9002:9000"
+      - "9003:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - skd-network
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: skd-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin &&
+      mc mb --ignore-existing local/content-media &&
+      mc anonymous set download local/content-media &&
+      echo 'Bucket content-media ready'
+      "
+    networks:
+      - skd-network
+
+  # ============================================================
+  # MIGRATIONS — Content Aggregation (Liquibase + Alembic)
+  # ============================================================
+
+  config-liquibase:
+    image: liquibase/liquibase:latest
+    container_name: skd-config-liquibase
+    depends_on:
+      postgres:
+        condition: service_healthy
+    working_dir: /changelog
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        echo "Downloading PostgreSQL driver..." && \
+        wget -q -O /liquibase/internal/lib/postgresql.jar https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.4/postgresql-42.7.4.jar && \
+        echo "Applying migrations for config schema..." && \
+        liquibase --classpath=/liquibase/internal/lib/postgresql.jar \
+          --url=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-content_agg_db} \
+          --username=${POSTGRES_USER:-postgres} \
+          --password=${POSTGRES_PASSWORD:-postgres} \
+          --defaultSchemaName=config \
+          --changeLogFile=changelog.yaml \
+          update
+    volumes:
+      - ./content-aggregation-system/config-service/src/main/resources/changelog:/changelog:ro
+    networks:
+      - skd-network
+
+  parser-liquibase:
+    image: liquibase/liquibase:latest
+    container_name: skd-parser-liquibase
+    depends_on:
+      postgres:
+        condition: service_healthy
+    working_dir: /changelog
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        echo "Downloading PostgreSQL driver..." && \
+        wget -q -O /liquibase/internal/lib/postgresql.jar https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.4/postgresql-42.7.4.jar && \
+        echo "Applying migrations for data_flow schema..." && \
+        liquibase --classpath=/liquibase/internal/lib/postgresql.jar \
+          --url=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-content_agg_db} \
+          --username=${POSTGRES_USER:-postgres} \
+          --password=${POSTGRES_PASSWORD:-postgres} \
+          --defaultSchemaName=data_flow \
+          --changeLogFile=changelog.yaml \
+          update
+    volumes:
+      - ./content-aggregation-system/content-parser-service/src/main/resources/changelog:/changelog:ro
+    networks:
+      - skd-network
+
+  dedup-alembic:
+    build:
+      context: ./dedup-system
+      dockerfile: Dockerfile
+    container_name: skd-dedup-alembic
+    command: uv run alembic upgrade head
+    environment:
+      DEDUP_DB_DSN: postgresql://postgres:postgres@postgres:5432/content_agg_db?options=-csearch_path%3Ddata_flow
+    depends_on:
+      parser-liquibase:
+        condition: service_completed_successfully
+    networks:
+      - skd-network
+
+  rec-alembic:
+    build:
+      context: ./rec-system
+      dockerfile: Dockerfile
+    container_name: skd-rec-alembic
+    command: uv run alembic upgrade rec_data_flow@head
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/content_agg_db
+    depends_on:
+      parser-liquibase:
+        condition: service_completed_successfully
+    networks:
+      - skd-network
+
+  # ============================================================
+  # MIGRATIONS — Backend (Liquibase)
+  # ============================================================
+
+  auth-liquibase:
+    image: liquibase/liquibase:latest
+    container_name: skd-auth-liquibase
+    depends_on:
+      postgres:
+        condition: service_healthy
+    working_dir: /changelog
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        echo "Downloading PostgreSQL driver..." && \
+        wget -q -O /liquibase/internal/lib/postgresql.jar https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.4/postgresql-42.7.4.jar && \
+        echo "Applying migrations for auth schema..." && \
+        liquibase --classpath=/liquibase/internal/lib/postgresql.jar \
+          --url=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-content_agg_db} \
+          --username=${POSTGRES_USER:-postgres} \
+          --password=${POSTGRES_PASSWORD:-postgres} \
+          --defaultSchemaName=auth \
+          --changeLogFile=changelog.yaml \
+          update
+    volumes:
+      - ./backend/auth-service/src/main/resources/changelog:/changelog:ro
+    networks:
+      - skd-network
+
+  user-liquibase:
+    image: liquibase/liquibase:latest
+    container_name: skd-user-liquibase
+    depends_on:
+      postgres:
+        condition: service_healthy
+    working_dir: /changelog
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        echo "Downloading PostgreSQL driver..." && \
+        wget -q -O /liquibase/internal/lib/postgresql.jar https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.4/postgresql-42.7.4.jar && \
+        echo "Applying migrations for users schema..." && \
+        liquibase --classpath=/liquibase/internal/lib/postgresql.jar \
+          --url=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-content_agg_db} \
+          --username=${POSTGRES_USER:-postgres} \
+          --password=${POSTGRES_PASSWORD:-postgres} \
+          --defaultSchemaName=users \
+          --changeLogFile=changelog.yaml \
+          update
+    volumes:
+      - ./backend/user-service/src/main/resources/changelog:/changelog:ro
+    networks:
+      - skd-network
+
+  interactions-liquibase:
+    image: liquibase/liquibase:latest
+    container_name: skd-interactions-liquibase
+    depends_on:
+      postgres:
+        condition: service_healthy
+    working_dir: /changelog
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        echo "Downloading PostgreSQL driver..." && \
+        wget -q -O /liquibase/internal/lib/postgresql.jar https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.4/postgresql-42.7.4.jar && \
+        echo "Applying migrations for interactions schema..." && \
+        liquibase --classpath=/liquibase/internal/lib/postgresql.jar \
+          --url=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-content_agg_db} \
+          --username=${POSTGRES_USER:-postgres} \
+          --password=${POSTGRES_PASSWORD:-postgres} \
+          --defaultSchemaName=interactions \
+          --changeLogFile=changelog.yaml \
+          update
+    volumes:
+      - ./backend/user-interactions-service/src/main/resources/changelog:/changelog:ro
+    networks:
+      - skd-network
+
+  subscription-liquibase:
+    image: liquibase/liquibase:latest
+    container_name: skd-subscription-liquibase
+    depends_on:
+      postgres:
+        condition: service_healthy
+    working_dir: /changelog
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        echo "Downloading PostgreSQL driver..." && \
+        wget -q -O /liquibase/internal/lib/postgresql.jar https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.4/postgresql-42.7.4.jar && \
+        echo "Applying migrations for subscription schema..." && \
+        liquibase --classpath=/liquibase/internal/lib/postgresql.jar \
+          --url=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-content_agg_db} \
+          --username=${POSTGRES_USER:-postgres} \
+          --password=${POSTGRES_PASSWORD:-postgres} \
+          --defaultSchemaName=subscription \
+          --changeLogFile=changelog.yaml \
+          update
+    volumes:
+      - ./backend/subscription-service/src/main/resources/changelog:/changelog:ro
+    networks:
+      - skd-network
+
+  feed-liquibase:
+    image: liquibase/liquibase:latest
+    container_name: skd-feed-liquibase
+    depends_on:
+      postgres:
+        condition: service_healthy
+    working_dir: /changelog
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        echo "Downloading PostgreSQL driver..." && \
+        wget -q -O /liquibase/internal/lib/postgresql.jar https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.4/postgresql-42.7.4.jar && \
+        echo "Applying migrations for feed schema..." && \
+        liquibase --classpath=/liquibase/internal/lib/postgresql.jar \
+          --url=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-content_agg_db} \
+          --username=${POSTGRES_USER:-postgres} \
+          --password=${POSTGRES_PASSWORD:-postgres} \
+          --defaultSchemaName=feed \
+          --changeLogFile=changelog.yaml \
+          update
+    volumes:
+      - ./backend/feed-service/src/main/resources/changelog:/changelog:ro
+    networks:
+      - skd-network
+
+  # ============================================================
+  # CONTENT AGGREGATION SERVICES
+  # ============================================================
+
+  config-service:
+    build:
+      context: ./content-aggregation-system/config-service
+      dockerfile: Dockerfile
+    container_name: skd-config-service
+    ports:
+      - "18081:8081"
+    env_file:
+      - ./content-aggregation-system/config-service/.env
+    environment:
+      DB_HOST: postgres
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on:
+      config-liquibase:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 5
+      start_period: 60s
+    networks:
+      - skd-network
+
+  content-parser-service:
+    build:
+      context: ./content-aggregation-system/content-parser-service
+      dockerfile: Dockerfile
+    container_name: skd-parser-service
+    ports:
+      - "18082:8082"
+    env_file:
+      - ./content-aggregation-system/content-parser-service/.env
+    environment:
+      DB_HOST: postgres
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      S3_ENDPOINT: http://minio:9000
+      S3_PUBLIC_URL: http://minio:9000
+      CONFIG_SERVICE_URL: http://config-service:8081
+      TELEGRAM_ENABLED: "false"
+    depends_on:
+      parser-liquibase:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      config-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 5
+      start_period: 60s
+    networks:
+      - skd-network
+
+  content-aggregator-service:
+    build:
+      context: ./content-aggregation-system/content-aggregator-service
+      dockerfile: Dockerfile
+    container_name: skd-aggregator-service
+    ports:
+      - "8086:8086"
+    env_file:
+      - ./content-aggregation-system/content-aggregator-service/.env
+    environment:
+      DB_HOST: postgres
+    depends_on:
+      parser-liquibase:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8086/actuator/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 5
+      start_period: 60s
+    networks:
+      skd-network:
+        aliases:
+          - content-aggregation-system
+
+  # ============================================================
+  # ML WORKERS
+  # ============================================================
+
+  dedup-worker:
+    build:
+      context: ./dedup-system
+      dockerfile: Dockerfile
+    container_name: skd-dedup-worker
+    command: uv run python -m src.presentation.worker_runner
+    environment:
+      DEDUP_DB_DSN: postgresql://postgres:postgres@postgres:5432/content_agg_db?options=-csearch_path%3Ddata_flow
+      DEDUP_MODEL_NAME: ${DEDUP_MODEL_NAME:-BAAI/bge-m3}
+      DEDUP_POLL_INTERVAL: ${DEDUP_POLL_INTERVAL:-0.2}
+    depends_on:
+      dedup-alembic:
+        condition: service_completed_successfully
+    volumes:
+      - dedup-model-cache:/root/.cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - skd-network
+
+  rec-worker:
+    build:
+      context: ./rec-system
+      dockerfile: Dockerfile
+    container_name: skd-rec-worker
+    command: uv run uvicorn src.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/content_agg_db
+      REDIS_URL: redis://redis:6379/0
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      APP_VERSION: "1.2.0"
+    depends_on:
+      rec-alembic:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    volumes:
+      - rec-model-cache:/root/.cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+    networks:
+      - skd-network
+
+  # ============================================================
+  # BACKEND MICROSERVICES
+  # ============================================================
+
+  auth-service:
+    build: ./backend/auth-service
+    container_name: skd-auth-service
+    ports:
+      - "8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      auth-liquibase:
+        condition: service_completed_successfully
+    environment:
+      DB_HOST: postgres
+      DB_NAME: ${POSTGRES_DB:-content_agg_db}
+      DB_SCHEMA: auth
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      KAFKA_BROKERS: ${KAFKA_BROKERS}
+      GATEWAY_HMAC_SECRET: ${GATEWAY_HMAC_SECRET}
+      FRONTEND_URL: ${FRONTEND_URL}
+      AUTH_DEV_MODE: ${AUTH_DEV_MODE}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    networks:
+      - skd-network
+
+  user-service:
+    build: ./backend/user-service
+    container_name: skd-user-service
+    ports:
+      - "8082:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      user-liquibase:
+        condition: service_completed_successfully
+      rec-worker:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_NAME: ${POSTGRES_DB:-content_agg_db}
+      DB_SCHEMA: users
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      KAFKA_BROKERS: ${KAFKA_BROKERS}
+      GATEWAY_HMAC_SECRET: ${GATEWAY_HMAC_SECRET}
+      REC_SYSTEM_URL: ${REC_SYSTEM_URL}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    networks:
+      - skd-network
+
+  user-interactions-service:
+    build: ./backend/user-interactions-service
+    container_name: skd-user-interactions-service
+    ports:
+      - "8083:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      interactions-liquibase:
+        condition: service_completed_successfully
+    environment:
+      DB_HOST: postgres
+      DB_NAME: ${POSTGRES_DB:-content_agg_db}
+      DB_SCHEMA: interactions
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      KAFKA_BROKERS: ${KAFKA_BROKERS}
+      GATEWAY_HMAC_SECRET: ${GATEWAY_HMAC_SECRET}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    networks:
+      - skd-network
+
+  yookassa-proxy:
+    image: nginx:alpine
+    container_name: skd-yookassa-proxy
+    network_mode: host
+    volumes:
+      - ./backend/infrastructure/yookassa-proxy/nginx.conf:/etc/nginx/nginx.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:18080/v3 || exit 0"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  subscription-service:
+    build: ./backend/subscription-service
+    container_name: skd-subscription-service
+    ports:
+      - "8084:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      subscription-liquibase:
+        condition: service_completed_successfully
+    environment:
+      DB_HOST: postgres
+      DB_NAME: ${POSTGRES_DB:-content_agg_db}
+      DB_SCHEMA: subscription
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      KAFKA_BROKERS: ${KAFKA_BROKERS}
+      GATEWAY_HMAC_SECRET: ${GATEWAY_HMAC_SECRET}
+      YOOKASSA_SHOP_ID: ${YOOKASSA_SHOP_ID}
+      YOOKASSA_SECRET_KEY: ${YOOKASSA_SECRET_KEY}
+      YOOKASSA_API_URL: http://host.docker.internal:18080/v3
+      YOOKASSA_WEBHOOK_DEV_MODE: ${YOOKASSA_WEBHOOK_DEV_MODE}
+      FRONTEND_URL: ${FRONTEND_URL}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    networks:
+      - skd-network
+
+  feed-service:
+    build: ./backend/feed-service
+    container_name: skd-feed-service
+    ports:
+      - "8085:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      feed-liquibase:
+        condition: service_completed_successfully
+      rec-worker:
+        condition: service_healthy
+      content-aggregator-service:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_NAME: ${POSTGRES_DB:-content_agg_db}
+      DB_SCHEMA: feed
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      KAFKA_BROKERS: ${KAFKA_BROKERS}
+      GATEWAY_HMAC_SECRET: ${GATEWAY_HMAC_SECRET}
+      SERVICES_REC_SYSTEM_URL: ${SERVICES_REC_SYSTEM_URL}
+      SERVICES_CONTENT_AGGREGATION_URL: ${SERVICES_CONTENT_AGGREGATION_URL}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    networks:
+      - skd-network
+
+  api-gateway:
+    build: ./backend/api-gateway
+    container_name: skd-api-gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    environment:
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      GATEWAY_HMAC_SECRET: ${GATEWAY_HMAC_SECRET}
+      FRONTEND_URL: ${FRONTEND_URL}
+      SPRING_PROFILES_ACTIVE: unified
+    volumes:
+      - ./infrastructure/gateway/application-unified.yml:/app/config/application-unified.yml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    networks:
+      - skd-network
+
+volumes:
+  postgres-data:
+    driver: local
+  minio-data:
+    driver: local
+  dedup-model-cache:
+    driver: local
+  rec-model-cache:
+    driver: local
+
+networks:
+  skd-network:
+    driver: bridge

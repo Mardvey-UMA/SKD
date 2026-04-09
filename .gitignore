@@ -1,0 +1,8 @@
+rec-system/
+dedup-system/
+content-aggregation-system/
+frontend/
+backend/
+.env
+.mcp.json
+CLAUDE.md
