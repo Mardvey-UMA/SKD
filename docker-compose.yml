@@ -397,6 +397,8 @@ services:
       timeout: 3s
       retries: 5
       start_period: 60s
+    volumes:
+      - telegram-session-data:/app/telegram-session
     networks:
       - skd-network
 
@@ -718,6 +720,8 @@ volumes:
   dedup-model-cache:
     driver: local
   rec-model-cache:
+    driver: local
+  telegram-session-data:
     driver: local
 
 networks:
