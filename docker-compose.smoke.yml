@@ -1,0 +1,26 @@
+# docker-compose override for Phase 1 verify:
+# runs content-parser-service with 3 replicas (HABR+VCRU only) to validate
+# horizontal scaling (leader-planner + worker-pool on PostgreSQL via Quartz
+# JDBC clustering). Used with:
+#   docker compose -f docker-compose.yml -f docker-compose.smoke.yml up -d \
+#     --scale content-parser-service=3 content-parser-service
+# Cleanup: stop smoke containers + use base compose again.
+
+services:
+  content-parser-service:
+    container_name: !reset   # enables --scale (docker compose forbids fixed name + >1 replica)
+    ports: !override       # replace, don't merge — host ports must be unique per replica
+      - "18082-18084:8082"
+    environment:
+      TELEGRAM_ENABLED: "false"
+      PARSER_ENABLED_SOURCE_TYPES: "HABR,VCRU"
+      # Force Quartz instance id auto-generation (spec uses AUTO by default,
+      # but make it explicit so each replica gets a distinct schedulerInstanceId)
+      SPRING_QUARTZ_PROPERTIES_ORG_QUARTZ_SCHEDULER_INSTANCEID: "AUTO"
+      # TERMINATION_GRACE gives TaskReclaimer @PreDestroy time to reset RUNNING tasks
+      JAVA_OPTS: "-Xms512m -Xmx1024m"
+    # Drop the telegram-session volume on scaled replicas — they don't use TDLib.
+    # Telegram parsing should run in a separate single-replica deployment (parser-tg).
+    volumes: !override []
+    # Shorter grace period so smoke-test cycles faster; production should use 60s.
+    stop_grace_period: 30s
