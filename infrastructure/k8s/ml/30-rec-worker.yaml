@@ -1,0 +1,100 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rec-model-cache
+  namespace: skd
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rec-worker
+  namespace: skd
+spec:
+  selector:
+    app: rec-worker
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rec-worker
+  namespace: skd
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: rec-worker
+  template:
+    metadata:
+      labels:
+        app: rec-worker
+    spec:
+      runtimeClassName: nvidia
+      containers:
+        - name: rec-worker
+          image: skd-rec-worker:latest
+          imagePullPolicy: Never
+          command:
+            - uv
+            - run
+            - uvicorn
+            - src.main:app
+            - "--host"
+            - "0.0.0.0"
+            - "--port"
+            - "8000"
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: DATABASE_URL
+              value: "postgresql+asyncpg://postgres:postgres@postgres:5432/content_agg_db"
+            - name: REDIS_URL
+              value: "redis://valkey:6379/0"
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: "kafka:29092"
+            - name: APP_VERSION
+              value: "1.2.0"
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: "all"
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: "compute,utility"
+            - name: REC_MAX_NLP_TOKENS
+              value: "512"
+            - name: REC_MAX_CLEAN_TEXT_BYTES
+              value: "1048576"
+            - name: REC_TRUNCATE_TEXT_BYTES
+              value: "524288"
+          volumeMounts:
+            - name: model-cache
+              mountPath: /root/.cache
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            failureThreshold: 20
+          resources:
+            requests:
+              memory: 2Gi
+              cpu: 500m
+              nvidia.com/gpu: 1
+            limits:
+              memory: 6Gi
+              cpu: 4
+              nvidia.com/gpu: 1
+      volumes:
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: rec-model-cache

@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dedup-model-cache
+  namespace: skd
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dedup-worker
+  namespace: skd
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: dedup-worker
+  template:
+    metadata:
+      labels:
+        app: dedup-worker
+    spec:
+      runtimeClassName: nvidia
+      containers:
+        - name: dedup-worker
+          image: skd-dedup-worker:latest
+          imagePullPolicy: Never
+          command: ["uv", "run", "python", "-m", "src.presentation.worker_runner"]
+          env:
+            - name: DEDUP_DB_DSN
+              value: "postgresql://postgres:postgres@postgres:5432/content_agg_db?options=-csearch_path%3Ddata_flow"
+            - name: DEDUP_MODEL_NAME
+              value: "BAAI/bge-m3"
+            - name: DEDUP_POLL_INTERVAL
+              value: "0.2"
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: "all"
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: "compute,utility"
+            - name: PYTORCH_CUDA_ALLOC_CONF
+              value: "expandable_segments:True"
+            - name: CUDA_MEM_FRACTION
+              value: "0.60"
+          volumeMounts:
+            - name: model-cache
+              mountPath: /root/.cache
+          resources:
+            requests:
+              memory: 2Gi
+              cpu: 500m
+              nvidia.com/gpu: 1
+            limits:
+              memory: 6Gi
+              cpu: 4
+              nvidia.com/gpu: 1
+      volumes:
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: dedup-model-cache

@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: content-aggregator
+  namespace: skd
+spec:
+  selector:
+    app: content-aggregator
+  ports:
+    - name: http
+      port: 8086
+      targetPort: 8086
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: content-aggregator
+  namespace: skd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: content-aggregator
+  template:
+    metadata:
+      labels:
+        app: content-aggregator
+    spec:
+      containers:
+        - name: content-aggregator
+          image: skd-content-aggregator-service:latest
+          imagePullPolicy: Never
+          ports:
+            - name: http
+              containerPort: 8086
+          envFrom:
+            - configMapRef:
+                name: common-env
+          env:
+            - name: SERVER_PORT
+              value: "8086"
+            - name: SPRING_LIQUIBASE_ENABLED
+              value: "false"  # no migrations from aggregator
+            - name: LOG_LEVEL_ROOT
+              value: "INFO"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 90
+            periodSeconds: 30
+          resources:
+            requests:
+              memory: 384Mi
+              cpu: 100m
+            limits:
+              memory: 768Mi
+              cpu: 1

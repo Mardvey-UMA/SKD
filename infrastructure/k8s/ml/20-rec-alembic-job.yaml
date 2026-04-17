@@ -1,0 +1,19 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rec-alembic
+  namespace: skd
+spec:
+  backoffLimit: 5
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: alembic
+          image: skd-rec-worker:latest
+          imagePullPolicy: Never
+          command: ["uv", "run", "alembic", "upgrade", "rec_data_flow@head"]
+          env:
+            - name: DATABASE_URL
+              value: "postgresql://postgres:postgres@postgres:5432/content_agg_db"
