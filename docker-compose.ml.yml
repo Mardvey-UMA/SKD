@@ -1,0 +1,102 @@
+# Docker-Compose for ML workers (dedup + rec) that connect to k3d cluster
+# services via NodePort. Used because 9GB+ CUDA images don't fit in k3d
+# containerd alongside the rest of the platform.
+#
+# Run: docker compose -f docker-compose.ml.yml up -d
+# The network k3d-skd is external (created by k3d cluster create skd).
+
+services:
+  dedup-alembic:
+    image: skd-dedup-worker:latest
+    container_name: ml-dedup-alembic
+    command: uv run alembic upgrade head
+    environment:
+      DEDUP_DB_DSN: "postgresql://postgres:postgres@k3d-skd-server-0:30432/content_agg_db?options=-csearch_path%3Ddata_flow"
+    networks:
+      - k3d
+
+  rec-alembic:
+    image: skd-rec-worker:latest
+    container_name: ml-rec-alembic
+    command: uv run alembic upgrade rec_data_flow@head
+    environment:
+      DATABASE_URL: "postgresql://postgres:postgres@k3d-skd-server-0:30432/content_agg_db"
+    networks:
+      - k3d
+
+  dedup-worker:
+    image: skd-dedup-worker:latest
+    container_name: ml-dedup-worker
+    runtime: nvidia
+    privileged: true
+    command: uv run python -m src.presentation.worker_runner
+    environment:
+      DEDUP_DB_DSN: "postgresql://postgres:postgres@k3d-skd-server-0:30432/content_agg_db?options=-csearch_path%3Ddata_flow"
+      DEDUP_MODEL_NAME: "BAAI/bge-m3"
+      DEDUP_POLL_INTERVAL: "0.2"
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      PYTORCH_CUDA_ALLOC_CONF: "expandable_segments:True"
+      CUDA_MEM_FRACTION: "0.35"
+    depends_on:
+      dedup-alembic:
+        condition: service_completed_successfully
+    volumes:
+      - dedup-model-cache:/root/.cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - k3d
+    restart: unless-stopped
+
+  rec-worker:
+    image: skd-rec-worker:latest
+    container_name: ml-rec-worker
+    runtime: nvidia
+    privileged: true
+    command: uv run uvicorn src.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://postgres:postgres@k3d-skd-server-0:30432/content_agg_db"
+      REDIS_URL: "redis://k3d-skd-server-0:30379/0"
+      KAFKA_BOOTSTRAP_SERVERS: "k3d-skd-server-0:30292"
+      APP_VERSION: "1.2.0"
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      REC_MAX_NLP_TOKENS: "512"
+      REC_MAX_CLEAN_TEXT_BYTES: "1048576"
+      REC_TRUNCATE_TEXT_BYTES: "524288"
+    depends_on:
+      rec-alembic:
+        condition: service_completed_successfully
+    volumes:
+      - rec-model-cache:/root/.cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - k3d
+    restart: unless-stopped
+
+networks:
+  k3d:
+    external: true
+    name: k3d-skd
+
+volumes:
+  dedup-model-cache:
+    external: true
+    name: skd_dedup-model-cache
+  rec-model-cache:
+    external: true
+    name: skd_rec-model-cache

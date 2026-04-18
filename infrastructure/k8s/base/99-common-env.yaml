@@ -19,4 +19,6 @@ data:
   CONFIG_SERVICE_URL: "http://config-service:8081"
   REDIS_HOST: "valkey"
   REDIS_PORT: "6379"
+  SPRING_DATA_REDIS_HOST: "valkey"
+  SPRING_DATA_REDIS_PORT: "6379"
   JAVA_TOOL_OPTIONS: "-XX:+UseG1GC -XX:MaxRAMPercentage=75.0 -XX:+HeapDumpOnOutOfMemoryError"
