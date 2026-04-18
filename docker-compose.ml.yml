@@ -37,7 +37,7 @@ services:
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
       PYTORCH_CUDA_ALLOC_CONF: "expandable_segments:True"
-      CUDA_MEM_FRACTION: "0.35"
+      CUDA_MEM_FRACTION: "0.55"
     depends_on:
       dedup-alembic:
         condition: service_completed_successfully
@@ -72,6 +72,8 @@ services:
       REC_MAX_NLP_TOKENS: "512"
       REC_MAX_CLEAN_TEXT_BYTES: "1048576"
       REC_TRUNCATE_TEXT_BYTES: "524288"
+      REC_CONTENT_JOB_INTERVAL_SECONDS: "30"
+      REC_CONTENT_BATCH_SIZE: "50"
     depends_on:
       rec-alembic:
         condition: service_completed_successfully

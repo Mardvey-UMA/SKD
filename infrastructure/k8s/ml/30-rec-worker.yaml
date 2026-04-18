@@ -40,6 +40,10 @@ spec:
         app: rec-worker
     spec:
       runtimeClassName: nvidia
+      tolerations:
+        - key: node.kubernetes.io/disk-pressure
+          operator: Exists
+          effect: NoSchedule
       containers:
         - name: rec-worker
           image: skd-rec-worker:latest
@@ -75,6 +79,10 @@ spec:
               value: "1048576"
             - name: REC_TRUNCATE_TEXT_BYTES
               value: "524288"
+            - name: REC_CONTENT_JOB_INTERVAL_SECONDS
+              value: "30"
+            - name: REC_CONTENT_BATCH_SIZE
+              value: "50"
           volumeMounts:
             - name: model-cache
               mountPath: /root/.cache
