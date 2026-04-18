@@ -31,6 +31,19 @@ add_vc() {
   echo "[vc]   $alias_name  HTTP $code  was_existing=$existing"
 }
 
+add_tg() {
+  local channel="$1"
+  # Use generic endpoint (bypass /telegram POST which triggers TG validation
+  # call to parser-tg — that has an unresolved Jackson Kotlin deserialization
+  # bug against TelegramValidateRequest). Generic endpoint accepts typed
+  # parameters map and creates the source directly.
+  local code=$(curl -s -o /tmp/add-src.out -w "%{http_code}" -X POST "$API" \
+    -H "Content-Type: application/json" \
+    -d "$(jq -n --arg c "$channel" '{sourceType:"TELEGRAM", name:$c, isActive:true, updateFrequencyMinutes:30, parameters:{channelUsername:$c, downloadMedia:"true", maxMessages:"50", maxMediaSizeMb:"50", batchSize:"50"}}')")
+  local existing=$(jq -r '.was_existing // "?"' </tmp/add-src.out 2>/dev/null)
+  echo "[tg]   $channel  HTTP $code  was_existing=$existing"
+}
+
 if [ "$TARGET" = "habr" ] || [ "$TARGET" = "all" ]; then
   echo "=== Adding Habr sources ==="
   jq -r '.habr[]' "$LINKS" | while read url; do add_habr "$url"; done
@@ -39,6 +52,11 @@ fi
 if [ "$TARGET" = "vc" ] || [ "$TARGET" = "all" ]; then
   echo "=== Adding VC.RU sources ==="
   jq -r '.vc[]' "$LINKS" | while read url; do add_vc "$url"; done
+fi
+
+if [ "$TARGET" = "tg" ] || [ "$TARGET" = "all" ]; then
+  echo "=== Adding Telegram channels ==="
+  jq -r '.tg[]' "$LINKS" | while read ch; do add_tg "$ch"; done
 fi
 
 echo ""

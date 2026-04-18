@@ -37,6 +37,10 @@ spec:
       port: 29092
       targetPort: 29092
       nodePort: 30292
+    - name: external
+      port: 29093
+      targetPort: 29093
+      nodePort: 30293
 ---
 apiVersion: v1
 kind: Service

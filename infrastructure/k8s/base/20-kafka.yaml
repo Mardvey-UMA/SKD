@@ -14,6 +14,9 @@ spec:
     - name: contentagg
       port: 29092
       targetPort: 29092
+    - name: external
+      port: 29093
+      targetPort: 29093
     - name: controller
       port: 9093
       targetPort: 9093
@@ -43,6 +46,8 @@ spec:
               containerPort: 9092
             - name: contentagg
               containerPort: 29092
+            - name: external
+              containerPort: 29093
             - name: controller
               containerPort: 9093
           env:
@@ -51,13 +56,13 @@ spec:
             - name: KAFKA_PROCESS_ROLES
               value: "broker,controller"
             - name: KAFKA_LISTENERS
-              value: "CONTROLLER://kafka-0.kafka.skd.svc.cluster.local:9093,BACKEND://0.0.0.0:9092,CONTENTAGG://0.0.0.0:29092"
+              value: "CONTROLLER://kafka-0.kafka.skd.svc.cluster.local:9093,BACKEND://0.0.0.0:9092,CONTENTAGG://0.0.0.0:29092,EXTERNAL://0.0.0.0:29093"
             - name: KAFKA_ADVERTISED_LISTENERS
-              value: "BACKEND://kafka:9092,CONTENTAGG://kafka:29092"
+              value: "BACKEND://kafka:9092,CONTENTAGG://kafka:29092,EXTERNAL://k3d-skd-server-0:30293"
             - name: KAFKA_CONTROLLER_QUORUM_VOTERS
               value: "1@kafka-0.kafka.skd.svc.cluster.local:9093"
             - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
-              value: "BACKEND:PLAINTEXT,CONTENTAGG:PLAINTEXT,CONTROLLER:PLAINTEXT"
+              value: "BACKEND:PLAINTEXT,CONTENTAGG:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT"
             - name: KAFKA_INTER_BROKER_LISTENER_NAME
               value: "BACKEND"
             - name: KAFKA_CONTROLLER_LISTENER_NAMES

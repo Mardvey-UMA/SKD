@@ -65,7 +65,7 @@ services:
     environment:
       DATABASE_URL: "postgresql+asyncpg://postgres:postgres@k3d-skd-server-0:30432/content_agg_db"
       REDIS_URL: "redis://k3d-skd-server-0:30379/0"
-      KAFKA_BOOTSTRAP_SERVERS: "k3d-skd-server-0:30292"
+      KAFKA_BOOTSTRAP_SERVERS: "k3d-skd-server-0:30293"
       APP_VERSION: "1.2.0"
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: compute,utility

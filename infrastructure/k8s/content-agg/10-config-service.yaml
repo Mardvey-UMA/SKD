@@ -45,6 +45,8 @@ spec:
               value: "classpath:/changelog/changelog.yaml"
             - name: SPRING_LIQUIBASE_DEFAULT_SCHEMA
               value: "config"
+            - name: PARSER_SERVICE_URL
+              value: "http://parser-tg:8082"
             - name: LOG_LEVEL_ROOT
               value: "INFO"
             - name: LOG_LEVEL_APP
