@@ -35,6 +35,7 @@ data:
   YOOKASSA_API_URL: "https://api.yookassa.ru/v3"
   YOOKASSA_WEBHOOK_DEV_MODE: "true"
   SPRING_LIQUIBASE_ENABLED: "true"
+  SPRING_LIQUIBASE_CHANGE_LOG: "classpath:/changelog/changelog.yaml"
   JAVA_TOOL_OPTIONS: "-XX:+UseG1GC -XX:MaxRAMPercentage=75.0 -XX:+HeapDumpOnOutOfMemoryError"
 ---
 apiVersion: v1

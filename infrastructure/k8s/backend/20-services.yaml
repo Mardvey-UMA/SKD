@@ -29,6 +29,7 @@ spec:
             - secretRef: { name: backend-secrets }
           env:
             - { name: DB_SCHEMA, value: "auth" }
+            - { name: SPRING_LIQUIBASE_DEFAULT_SCHEMA, value: "auth" }
           readinessProbe: { httpGet: { path: /health, port: http }, initialDelaySeconds: 40, periodSeconds: 10, failureThreshold: 15 }
           livenessProbe: { httpGet: { path: /health, port: http }, initialDelaySeconds: 120, periodSeconds: 30 }
           resources: { requests: { memory: 384Mi, cpu: 100m }, limits: { memory: 768Mi, cpu: 1 } }
@@ -60,6 +61,7 @@ spec:
             - secretRef: { name: backend-secrets }
           env:
             - { name: DB_SCHEMA, value: "users" }
+            - { name: SPRING_LIQUIBASE_DEFAULT_SCHEMA, value: "users" }
           readinessProbe: { httpGet: { path: /health, port: http }, initialDelaySeconds: 40, periodSeconds: 10, failureThreshold: 15 }
           livenessProbe: { httpGet: { path: /health, port: http }, initialDelaySeconds: 120, periodSeconds: 30 }
           resources: { requests: { memory: 384Mi, cpu: 100m }, limits: { memory: 768Mi, cpu: 1 } }
@@ -91,6 +93,7 @@ spec:
             - secretRef: { name: backend-secrets }
           env:
             - { name: DB_SCHEMA, value: "interactions" }
+            - { name: SPRING_LIQUIBASE_DEFAULT_SCHEMA, value: "interactions" }
           readinessProbe: { httpGet: { path: /health, port: http }, initialDelaySeconds: 40, periodSeconds: 10, failureThreshold: 15 }
           livenessProbe: { httpGet: { path: /health, port: http }, initialDelaySeconds: 120, periodSeconds: 30 }
           resources: { requests: { memory: 384Mi, cpu: 100m }, limits: { memory: 768Mi, cpu: 1 } }
@@ -122,6 +125,7 @@ spec:
             - secretRef: { name: backend-secrets }
           env:
             - { name: DB_SCHEMA, value: "subscription" }
+            - { name: SPRING_LIQUIBASE_DEFAULT_SCHEMA, value: "subscription" }
           readinessProbe: { httpGet: { path: /health, port: http }, initialDelaySeconds: 40, periodSeconds: 10, failureThreshold: 15 }
           livenessProbe: { httpGet: { path: /health, port: http }, initialDelaySeconds: 120, periodSeconds: 30 }
           resources: { requests: { memory: 384Mi, cpu: 100m }, limits: { memory: 768Mi, cpu: 1 } }
@@ -153,6 +157,7 @@ spec:
             - secretRef: { name: backend-secrets }
           env:
             - { name: DB_SCHEMA, value: "feed" }
+            - { name: SPRING_LIQUIBASE_DEFAULT_SCHEMA, value: "feed" }
           readinessProbe: { httpGet: { path: /health, port: http }, initialDelaySeconds: 40, periodSeconds: 10, failureThreshold: 15 }
           livenessProbe: { httpGet: { path: /health, port: http }, initialDelaySeconds: 120, periodSeconds: 30 }
           resources: { requests: { memory: 384Mi, cpu: 100m }, limits: { memory: 768Mi, cpu: 1 } }

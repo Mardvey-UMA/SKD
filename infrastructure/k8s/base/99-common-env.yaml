@@ -22,3 +22,4 @@ data:
   SPRING_DATA_REDIS_HOST: "valkey"
   SPRING_DATA_REDIS_PORT: "6379"
   JAVA_TOOL_OPTIONS: "-XX:+UseG1GC -XX:MaxRAMPercentage=75.0 -XX:+HeapDumpOnOutOfMemoryError"
+  SPRING_LIQUIBASE_CHANGE_LOG: "classpath:/changelog/changelog.yaml"
