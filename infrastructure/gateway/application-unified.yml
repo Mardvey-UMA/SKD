@@ -20,13 +20,11 @@ gateway:
       target: http://subscription-service:8080
       public: true
       strip-prefix: false
-    - path-prefix: /api/v1/sources
+    - path-prefix: /api/sources
       target: http://config-service:8081
       strip-prefix: false
-      required-roles:
-        - SUBSCRIBER
     - path-prefix: /api/config
-      target: http://content-aggregation-system:8086
+      target: http://config-service:8081
       strip-prefix: false
       required-roles:
         - SUBSCRIBER

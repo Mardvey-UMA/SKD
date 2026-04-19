@@ -27,6 +27,10 @@ spec:
         app: dedup-worker
     spec:
       runtimeClassName: nvidia
+      tolerations:
+        - key: node.kubernetes.io/disk-pressure
+          operator: Exists
+          effect: NoSchedule
       containers:
         - name: dedup-worker
           image: skd-dedup-worker:latest

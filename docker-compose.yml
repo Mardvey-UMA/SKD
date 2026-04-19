@@ -1,6 +1,17 @@
 # Unified Platform docker-compose — orchestrates ALL services
 # Content-Aggregation (3) + Dedup + Rec + Backend (6) = 12 application services
-# Infrastructure: PostgreSQL (pgvector), Redis, Kafka, Zookeeper, MinIO
+# Infrastructure: PostgreSQL 17 (pgvector), Valkey, Kafka (KRaft), SeaweedFS
+
+# --- Shared JVM settings for Kotlin/Spring Boot services (Java 21) ---
+x-java-env: &java-env
+  JAVA_TOOL_OPTIONS: >-
+    -XX:+UseG1GC
+    -XX:MaxGCPauseMillis=100
+    -XX:+UseStringDeduplication
+    -XX:+HeapDumpOnOutOfMemoryError
+    -XX:HeapDumpPath=/tmp/heap-dump.hprof
+    -XX:MaxRAMPercentage=75.0
+    -Dspring.threads.virtual.enabled=true
 
 services:
 
@@ -9,17 +20,24 @@ services:
   # ============================================================
 
   postgres:
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector:pg17
     container_name: skd-postgres
-    command: postgres -c max_connections=300
+    command: >
+      postgres
+      -c max_connections=300
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c work_mem=16MB
+      -c checkpoint_timeout=30min
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-content_agg_db}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "5432:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - /mnt/postgres_data:/var/lib/postgresql/data
       - ./infrastructure/postgres/init-all.sh:/docker-entrypoint-initdb.d/init-all.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
@@ -29,90 +47,88 @@ services:
     networks:
       - skd-network
 
-  redis:
-    image: redis:7-alpine
-    container_name: skd-redis
+  valkey:
+    image: valkey/valkey:8-alpine
+    container_name: skd-valkey
+    command: >
+      valkey-server
+      --save ""
+      --appendonly no
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
     ports:
       - "6379:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "valkey-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
     networks:
       - skd-network
 
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.6.0
-    container_name: skd-zookeeper
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    healthcheck:
-      test: ["CMD-SHELL", "echo srvr | nc localhost 2181 | grep Mode"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    networks:
-      - skd-network
-
   kafka:
-    image: confluentinc/cp-kafka:7.6.0
+    image: confluentinc/cp-kafka:7.9.0
     container_name: skd-kafka
-    depends_on:
-      zookeeper:
-        condition: service_healthy
+    hostname: kafka
     ports:
       - "9092:39092"
     environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: BACKEND:PLAINTEXT,CONTENTAGG:PLAINTEXT,HOST:PLAINTEXT
-      KAFKA_LISTENERS: BACKEND://0.0.0.0:9092,CONTENTAGG://0.0.0.0:29092,HOST://0.0.0.0:39092
-      KAFKA_ADVERTISED_LISTENERS: BACKEND://kafka:9092,CONTENTAGG://kafka:29092,HOST://localhost:9092
-      KAFKA_INTER_BROKER_LISTENER_NAME: BACKEND
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_LISTENERS: 'BACKEND://kafka:9092,CONTENTAGG://kafka:29092,HOST://0.0.0.0:39092,CONTROLLER://kafka:9093'
+      KAFKA_ADVERTISED_LISTENERS: 'BACKEND://kafka:9092,CONTENTAGG://kafka:29092,HOST://localhost:9092'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'BACKEND:PLAINTEXT,CONTENTAGG:PLAINTEXT,HOST:PLAINTEXT,CONTROLLER:PLAINTEXT'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'BACKEND'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:9093'
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 1
+      KAFKA_LOG_SEGMENT_BYTES: 10485760
+      KAFKA_NUM_PARTITIONS: 4
+      KAFKA_HEAP_OPTS: "-Xmx512m -Xms512m"
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
     healthcheck:
-      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server kafka:9092 > /dev/null 2>&1"]
       interval: 10s
       timeout: 10s
       retries: 15
     networks:
       - skd-network
 
-  minio:
-    image: minio/minio:latest
-    container_name: skd-minio
-    command: server /data --console-address ":9001"
+  seaweedfs:
+    image: chrislusf/seaweedfs:latest
+    container_name: skd-seaweedfs
+    command: server -s3 -s3.port=9000 -s3.config=/etc/seaweedfs/s3.json
     ports:
       - "9002:9000"
-      - "9003:9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      - "9003:8888"
     volumes:
-      - minio-data:/data
+      - /mnt/s3_data:/data
+      - ./infrastructure/seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9333/cluster/status 2>/dev/null | grep -q IsLeader"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 10s
+      retries: 10
+      start_period: 15s
     networks:
       - skd-network
 
-  minio-init:
-    image: minio/mc:latest
-    container_name: skd-minio-init
+  seaweedfs-init:
+    image: chrislusf/seaweedfs:latest
+    container_name: skd-seaweedfs-init
     depends_on:
-      minio:
+      seaweedfs:
         condition: service_healthy
     entrypoint: >
       /bin/sh -c "
-      mc alias set local http://minio:9000 minioadmin minioadmin &&
-      mc mb --ignore-existing local/content-media &&
-      mc anonymous set download local/content-media &&
+      echo 'Creating content-media bucket...' &&
+      echo 's3.bucket.create -name content-media' | weed shell -master=seaweedfs:9333 &&
       echo 'Bucket content-media ready'
       "
     networks:
@@ -350,12 +366,17 @@ services:
     env_file:
       - ./content-aggregation-system/config-service/.env
     environment:
+      <<: *java-env
       DB_HOST: postgres
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_DATA_REDIS_HOST: valkey
+      SPRING_DATA_REDIS_PORT: "6379"
     depends_on:
       config-liquibase:
         condition: service_completed_successfully
       kafka:
+        condition: service_healthy
+      valkey:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/actuator/health"]
@@ -376,18 +397,21 @@ services:
     env_file:
       - ./content-aggregation-system/content-parser-service/.env
     environment:
+      <<: *java-env
       DB_HOST: postgres
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      S3_ENDPOINT: http://minio:9000
-      S3_PUBLIC_URL: http://minio:9000
+      S3_ENDPOINT: http://seaweedfs:9000
+      S3_PUBLIC_URL: http://seaweedfs:9000
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-admin}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-adminsecretkey}
       CONFIG_SERVICE_URL: http://config-service:8081
-      TELEGRAM_ENABLED: "false"
+      TELEGRAM_ENABLED: "true"
     depends_on:
       parser-liquibase:
         condition: service_completed_successfully
       kafka:
         condition: service_healthy
-      minio-init:
+      seaweedfs-init:
         condition: service_completed_successfully
       config-service:
         condition: service_healthy
@@ -412,7 +436,9 @@ services:
     env_file:
       - ./content-aggregation-system/content-aggregator-service/.env
     environment:
+      <<: *java-env
       DB_HOST: postgres
+      S3_PUBLIC_URL: ${S3_PUBLIC_URL:-http://localhost:9002}
     depends_on:
       parser-liquibase:
         condition: service_completed_successfully
@@ -437,10 +463,16 @@ services:
       dockerfile: Dockerfile
     container_name: skd-dedup-worker
     command: uv run python -m src.presentation.worker_runner
+    runtime: nvidia
+    privileged: true
     environment:
       DEDUP_DB_DSN: postgresql://postgres:postgres@postgres:5432/content_agg_db?options=-csearch_path%3Ddata_flow
       DEDUP_MODEL_NAME: ${DEDUP_MODEL_NAME:-BAAI/bge-m3}
       DEDUP_POLL_INTERVAL: ${DEDUP_POLL_INTERVAL:-0.2}
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      PYTORCH_CUDA_ALLOC_CONF: "expandable_segments:True"
+      CUDA_MEM_FRACTION: "0.60"
     depends_on:
       dedup-alembic:
         condition: service_completed_successfully
@@ -462,17 +494,24 @@ services:
       dockerfile: Dockerfile
     container_name: skd-rec-worker
     command: uv run uvicorn src.main:app --host 0.0.0.0 --port 8000
+    runtime: nvidia
+    privileged: true
     ports:
       - "8000:8000"
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/content_agg_db
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://valkey:6379/0
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       APP_VERSION: "1.2.0"
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      REC_MAX_NLP_TOKENS: ${REC_MAX_NLP_TOKENS:-512}
+      REC_MAX_CLEAN_TEXT_BYTES: ${REC_MAX_CLEAN_TEXT_BYTES:-1048576}
+      REC_TRUNCATE_TEXT_BYTES: ${REC_TRUNCATE_TEXT_BYTES:-524288}
     depends_on:
       rec-alembic:
         condition: service_completed_successfully
-      redis:
+      valkey:
         condition: service_healthy
       kafka:
         condition: service_healthy
@@ -506,19 +545,20 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
+      valkey:
         condition: service_healthy
       kafka:
         condition: service_healthy
       auth-liquibase:
         condition: service_completed_successfully
     environment:
+      <<: *java-env
       DB_HOST: postgres
       DB_NAME: ${POSTGRES_DB:-content_agg_db}
       DB_SCHEMA: auth
       DB_USER: ${POSTGRES_USER:-postgres}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      REDIS_HOST: ${REDIS_HOST}
+      REDIS_HOST: valkey
       REDIS_PORT: ${REDIS_PORT}
       KAFKA_BROKERS: ${KAFKA_BROKERS}
       GATEWAY_HMAC_SECRET: ${GATEWAY_HMAC_SECRET}
@@ -552,6 +592,7 @@ services:
       rec-worker:
         condition: service_healthy
     environment:
+      <<: *java-env
       DB_HOST: postgres
       DB_NAME: ${POSTGRES_DB:-content_agg_db}
       DB_SCHEMA: users
@@ -582,6 +623,7 @@ services:
       interactions-liquibase:
         condition: service_completed_successfully
     environment:
+      <<: *java-env
       DB_HOST: postgres
       DB_NAME: ${POSTGRES_DB:-content_agg_db}
       DB_SCHEMA: interactions
@@ -625,6 +667,7 @@ services:
       subscription-liquibase:
         condition: service_completed_successfully
     environment:
+      <<: *java-env
       DB_HOST: postgres
       DB_NAME: ${POSTGRES_DB:-content_agg_db}
       DB_SCHEMA: subscription
@@ -654,7 +697,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
+      valkey:
         condition: service_healthy
       kafka:
         condition: service_healthy
@@ -665,12 +708,13 @@ services:
       content-aggregator-service:
         condition: service_healthy
     environment:
+      <<: *java-env
       DB_HOST: postgres
       DB_NAME: ${POSTGRES_DB:-content_agg_db}
       DB_SCHEMA: feed
       DB_USER: ${POSTGRES_USER:-postgres}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      REDIS_HOST: ${REDIS_HOST}
+      REDIS_HOST: valkey
       REDIS_PORT: ${REDIS_PORT}
       KAFKA_BROKERS: ${KAFKA_BROKERS}
       GATEWAY_HMAC_SECRET: ${GATEWAY_HMAC_SECRET}
@@ -691,15 +735,18 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      redis:
+      valkey:
         condition: service_healthy
       auth-service:
         condition: service_healthy
     environment:
-      REDIS_HOST: ${REDIS_HOST}
+      <<: *java-env
+      REDIS_HOST: valkey
       REDIS_PORT: ${REDIS_PORT}
       GATEWAY_HMAC_SECRET: ${GATEWAY_HMAC_SECRET}
       FRONTEND_URL: ${FRONTEND_URL}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      CORS_ALLOW_LOCALHOST_WILDCARD: ${CORS_ALLOW_LOCALHOST_WILDCARD:-false}
       SPRING_PROFILES_ACTIVE: unified
     volumes:
       - ./infrastructure/gateway/application-unified.yml:/app/config/application-unified.yml:ro
@@ -713,10 +760,6 @@ services:
       - skd-network
 
 volumes:
-  postgres-data:
-    driver: local
-  minio-data:
-    driver: local
   dedup-model-cache:
     driver: local
   rec-model-cache:

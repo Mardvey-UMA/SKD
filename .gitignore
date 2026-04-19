@@ -2,7 +2,19 @@ rec-system/
 dedup-system/
 content-aggregation-system/
 frontend/
+frontend-app/
 backend/
 .env
 .mcp.json
 CLAUDE.md
+
+# Ephemeral orchestration + research artifacts
+.claude/
+artifacts/
+.git-backups/
+.playground_cache/
+.playwright-mcp/
+
+# Research data (too large for git)
+telegram_posts.csv
+rec_playground_sample.csv
