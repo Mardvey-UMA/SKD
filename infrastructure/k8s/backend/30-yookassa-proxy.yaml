@@ -1,0 +1,40 @@
+# yookassa-proxy: k8s Service + Endpoints pointing to an nginx container
+# running on the HOST with --network host (outside k3d).
+#
+# Why: in this k3d + VPN (amn0) setup, k3d pods and k3d nodes cannot reach
+# api.yookassa.ru directly — the VPN routes that keep YooKassa reachable only
+# apply to host netns. A host-network docker container sees the VPN; pods do not.
+#
+# Pods reach this proxy via the k3d-skd bridge gateway IP (172.19.0.1), which
+# maps to the host interface listening on :18080. The nginx there forwards to
+# api.yookassa.ru using external DNS resolvers (8.8.8.8, 1.1.1.1).
+#
+# Start the proxy on host with:
+#   docker run -d --name skd-yookassa-proxy --network host --restart unless-stopped \
+#     -v /home/mattew/SKD/infrastructure/yookassa-proxy/nginx.conf:/etc/nginx/nginx.conf:ro \
+#     nginx:alpine
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: yookassa-proxy
+  namespace: skd
+spec:
+  ports:
+    - name: http
+      port: 18080
+      targetPort: 18080
+      protocol: TCP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: yookassa-proxy
+  namespace: skd
+subsets:
+  - addresses:
+      - ip: 172.19.0.1
+    ports:
+      - name: http
+        port: 18080
+        protocol: TCP
