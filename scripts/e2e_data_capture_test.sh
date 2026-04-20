@@ -266,7 +266,9 @@ INTERACTION_BODY=$(cat <<EOF
     "position_in_feed": 3,
     "device_type": "e2e-test",
     "app_version": "e2e-1.0.0",
-    "ab_bucket": 0
+    "ab_bucket": 0,
+    "scroll_depth": 0.85,
+    "metadata": {}
   }]
 }
 EOF
