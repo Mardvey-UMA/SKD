@@ -7,11 +7,12 @@
 #   ./scripts/e2e_data_capture_test.sh
 #
 # Environment variables:
-#   GATEWAY        API gateway base URL   (default: http://localhost:8080)
+#   GATEWAY        API gateway base URL   (default: http://localhost:28080)
 #   PSQL           PostgreSQL exec prefix (default: kubectl exec ...)
 #   TOKEN          Pre-set Bearer token   (skip registration/login if set)
-#   TEST_EMAIL     Test user email        (default: e2e-<epoch>@example.com)
+#   TEST_EMAIL     Test user email        (default: e2e-<epoch>@test.local)
 #   TEST_PASSWORD  Test user password     (default: E2eTestPass1)
+#   AUTH_DEV_MODE  Auto-verify email via SQL before login (default: true)
 #
 # Corrections vs spec §3:
 #   - items[2].id  (not .content_id) — ContentBatchItem field name is "id"
@@ -21,11 +22,23 @@
 # ═══════════════════════════════════════════════════════════════════════════
 set -euo pipefail
 
-GATEWAY="${GATEWAY:-http://localhost:8080}"
+GATEWAY="${GATEWAY:-http://localhost:28080}"
 PSQL="${PSQL:-kubectl exec -n skd postgres-0 -- psql -U postgres -d content_agg_db -t -A}"
-TEST_EMAIL="${TEST_EMAIL:-e2e-test-$(date +%s)@example.com}"
+TEST_EMAIL="${TEST_EMAIL:-e2e-$(date +%s)@test.local}"
 TEST_PASSWORD="${TEST_PASSWORD:-E2eTestPass1}"
+AUTH_DEV_MODE="${AUTH_DEV_MODE:-true}"
 TOKEN="${TOKEN:-}"
+
+# ── port-forward management + cleanup trap ──────────────────────────────────
+PF_PID=""
+trap '[[ -n "$PF_PID" ]] && kill "$PF_PID" 2>/dev/null; $PSQL -c "DELETE FROM auth.users WHERE email LIKE '\''e2e-%@test.local'\'';" >/dev/null 2>&1; exit' EXIT INT TERM
+
+if ! curl -sf "${GATEWAY}/health" >/dev/null 2>&1; then
+    echo "→ Starting kubectl port-forward → ${GATEWAY}"
+    kubectl port-forward -n skd svc/api-gateway "${GATEWAY##*:}:8080" >/dev/null 2>&1 &
+    PF_PID=$!
+    for i in {1..10}; do sleep 1; curl -sf "${GATEWAY}/health" >/dev/null 2>&1 && break; done
+fi
 
 PASS=0; FAIL=0; TOTAL=0
 
@@ -78,8 +91,11 @@ else
     abort "Cannot continue without a valid user. Check auth-service logs."
   fi
 
-  info "NOTE: If this is a fresh user, verify the email before re-running."
-  info "      Set \$TOKEN manually to skip auth: TOKEN=<jwt> ./e2e_data_capture_test.sh"
+  if [[ "${AUTH_DEV_MODE}" == "true" ]]; then
+    $PSQL -c "UPDATE auth.users SET email_verified=true WHERE email='${TEST_EMAIL}';" >/dev/null
+    echo "  ✓ Email auto-verified (dev-mode)"
+  fi
+
   info "Logging in..."
 
   LOGIN_BODY=$(curl -s \
@@ -90,9 +106,9 @@ else
   TOKEN=$(echo "$LOGIN_BODY" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('access_token',''))" 2>/dev/null || true)
 
   if [ -z "$TOKEN" ]; then
-    fail "Login failed — no accessToken in response"
+    fail "Login failed — no access_token in response"
     info "Response: ${LOGIN_BODY}"
-    abort "Cannot continue without a Bearer token. Verify email first or set \$TOKEN."
+    abort "Cannot continue without a Bearer token. Set AUTH_DEV_MODE=true or set \$TOKEN."
   fi
   pass "Login successful — token acquired"
 fi
