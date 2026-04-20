@@ -7,25 +7,39 @@
 #   ./scripts/e2e_data_capture_test.sh
 #
 # Environment variables:
-#   GATEWAY        API gateway base URL   (default: http://localhost:8080)
+#   GATEWAY        API gateway base URL   (default: http://localhost:28080)
 #   PSQL           PostgreSQL exec prefix (default: kubectl exec ...)
 #   TOKEN          Pre-set Bearer token   (skip registration/login if set)
-#   TEST_EMAIL     Test user email        (default: e2e-<epoch>@example.com)
+#   TEST_EMAIL     Test user email        (default: e2e-<epoch>@test.local)
 #   TEST_PASSWORD  Test user password     (default: E2eTestPass1)
+#   AUTH_DEV_MODE  Auto-verify email via SQL before login (default: true)
 #
 # Corrections vs spec §3:
 #   - items[2].id  (not .content_id) — ContentBatchItem field name is "id"
 #   - ui.action_type  (not ui.event_type) — actual DB column is action_type
-#   - action_type: "CLICK" (not "LIKE") — valid types: view,click,scroll_past,
-#     share,save,hide,dislike. "LIKE" uses a separate REST endpoint.
+#   - action_type: canonical 6 (post-P1 hardening): IMPRESSION, OPEN, CLOSE,
+#     LIKE, DISLIKE, BOOKMARK. Legacy names (VIEW/CLICK/SCROLL_PAST/SAVE/HIDE/
+#     SHARE) still accepted by backend and mapped to canonical at persistence.
 # ═══════════════════════════════════════════════════════════════════════════
 set -euo pipefail
 
-GATEWAY="${GATEWAY:-http://localhost:8080}"
+GATEWAY="${GATEWAY:-http://localhost:28080}"
 PSQL="${PSQL:-kubectl exec -n skd postgres-0 -- psql -U postgres -d content_agg_db -t -A}"
-TEST_EMAIL="${TEST_EMAIL:-e2e-test-$(date +%s)@example.com}"
+TEST_EMAIL="${TEST_EMAIL:-e2e-$(date +%s)@test.local}"
 TEST_PASSWORD="${TEST_PASSWORD:-E2eTestPass1}"
+AUTH_DEV_MODE="${AUTH_DEV_MODE:-true}"
 TOKEN="${TOKEN:-}"
+
+# ── port-forward management + cleanup trap ──────────────────────────────────
+PF_PID=""
+trap '[[ -n "$PF_PID" ]] && kill "$PF_PID" 2>/dev/null; $PSQL -c "DELETE FROM auth.users WHERE email LIKE '\''e2e-%@test.local'\'';" >/dev/null 2>&1; exit' EXIT INT TERM
+
+if ! curl -sf "${GATEWAY}/health" >/dev/null 2>&1; then
+    echo "→ Starting kubectl port-forward → ${GATEWAY}"
+    kubectl port-forward -n skd svc/api-gateway "${GATEWAY##*:}:8080" >/dev/null 2>&1 &
+    PF_PID=$!
+    for i in {1..10}; do sleep 1; curl -sf "${GATEWAY}/health" >/dev/null 2>&1 && break; done
+fi
 
 PASS=0; FAIL=0; TOTAL=0
 
@@ -78,8 +92,11 @@ else
     abort "Cannot continue without a valid user. Check auth-service logs."
   fi
 
-  info "NOTE: If this is a fresh user, verify the email before re-running."
-  info "      Set \$TOKEN manually to skip auth: TOKEN=<jwt> ./e2e_data_capture_test.sh"
+  if [[ "${AUTH_DEV_MODE}" == "true" ]]; then
+    $PSQL -c "UPDATE auth.users SET email_verified=true WHERE email='${TEST_EMAIL}';" >/dev/null
+    echo "  ✓ Email auto-verified (dev-mode)"
+  fi
+
   info "Logging in..."
 
   LOGIN_BODY=$(curl -s \
@@ -87,12 +104,12 @@ else
     -H "Content-Type: application/json" \
     -d "{\"email\":\"${TEST_EMAIL}\",\"password\":\"${TEST_PASSWORD}\"}")
 
-  TOKEN=$(echo "$LOGIN_BODY" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('accessToken',''))" 2>/dev/null || true)
+  TOKEN=$(echo "$LOGIN_BODY" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('access_token',''))" 2>/dev/null || true)
 
   if [ -z "$TOKEN" ]; then
-    fail "Login failed — no accessToken in response"
+    fail "Login failed — no access_token in response"
     info "Response: ${LOGIN_BODY}"
-    abort "Cannot continue without a Bearer token. Verify email first or set \$TOKEN."
+    abort "Cannot continue without a Bearer token. Set AUTH_DEV_MODE=true or set \$TOKEN."
   fi
   pass "Login successful — token acquired"
 fi
@@ -227,22 +244,22 @@ else
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 6 — POST /api/interactions/batch — CLICK on item at position 3
+# STEP 6 — POST /api/interactions/batch — LIKE on item at position 3
 # ══════════════════════════════════════════════════════════════════════════════
-step "6 — POST /api/interactions/batch (CLICK at position 3)"
+step "6 — POST /api/interactions/batch (LIKE at position 3)"
 
 EVENT_ID=$(gen_uuid)
 EVENT_TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-# NOTE: action_type="CLICK" — valid types are: view,click,scroll_past,share,save,hide,dislike
-# "LIKE" is not a valid action_type (likes use POST /api/feed/likes/{id} separately).
+# NOTE: action_type="LIKE" — canonical 6 set (post-P1): IMPRESSION, OPEN, CLOSE, LIKE, DISLIKE, BOOKMARK.
 # position_in_feed is 1-indexed per API_CONTRACTS.md
+# scroll_depth + metadata are persisted after P2 migration (20260420__add_scroll_depth_metadata.sql).
 
 INTERACTION_BODY=$(cat <<EOF
 {
   "events": [{
     "content_id": "${ITEM_AT_POSITION_3}",
-    "action_type": "CLICK",
+    "action_type": "LIKE",
     "duration_sec": null,
     "timestamp": "${EVENT_TS}",
     "schema_version": 2,
@@ -250,7 +267,9 @@ INTERACTION_BODY=$(cat <<EOF
     "position_in_feed": 3,
     "device_type": "e2e-test",
     "app_version": "e2e-1.0.0",
-    "ab_bucket": 0
+    "ab_bucket": 0,
+    "scroll_depth": 0.85,
+    "metadata": {"source": "e2e"}
   }]
 }
 EOF
@@ -293,7 +312,7 @@ pass "Wait complete"
 step "8 — The money JOIN query (§3 acceptance test)"
 
 # NOTE: spec §3 uses ui.event_type — actual DB column is ui.action_type
-# NOTE: spec §3 expects action_type='LIKE' — we sent 'CLICK' (LIKE is not a valid action_type)
+# NOTE: post-P1 canonical — we send 'LIKE', DB stores 'LIKE' (canonical) directly.
 
 JOIN_QUERY="SELECT fr.user_id, fi.position, fi.content_id::text,
        CASE WHEN fi.scoring_components IS NOT NULL THEN 'populated' ELSE 'null' END AS scoring,
@@ -326,22 +345,24 @@ echo
 info "JOIN result:"
 echo "$JOIN_RESULT" | head -20
 
-# Verify: exactly one row has action_type='click' at position=3
-CLICK_AT_POS3=$(run_sql "SELECT COUNT(*) FROM feed.feed_requests fr
+# Verify: exactly one row has action_type='LIKE' at position=3 + scroll_depth + metadata persisted (P2)
+LIKE_AT_POS3=$(run_sql "SELECT COUNT(*) FROM feed.feed_requests fr
 JOIN feed.feed_items fi ON fi.request_id = fr.request_id
 LEFT JOIN interactions.user_interactions ui
      ON ui.feed_request_id = fr.request_id
      AND ui.content_id = fi.content_id
 WHERE fr.request_id = '${REQUEST_ID}'
   AND fi.position = 3
-  AND lower(ui.action_type) = 'click'" 2>/dev/null | tr -d ' ' || echo "0")
+  AND ui.action_type = 'LIKE'
+  AND ui.scroll_depth = 0.85
+  AND ui.metadata->>'source' = 'e2e'" 2>/dev/null | tr -d ' ' || echo "0")
 
-if [ "${CLICK_AT_POS3:-0}" = "1" ]; then
-  pass "JOIN confirms: action_type='click' at feed position 3 — training pair linked ✓"
+if [ "${LIKE_AT_POS3:-0}" = "1" ]; then
+  pass "Money JOIN confirms: LIKE at position 3 + scroll_depth=0.85 + metadata.source=e2e — training pair captured ✓"
 else
-  fail "Expected 1 row with action_type='click' at position=3, found: ${CLICK_AT_POS3}"
-  info "The interaction may not have been persisted with feed_request_id correctly."
-  info "Check user-interactions-service InteractionProcessor and DB migration."
+  fail "Expected 1 row with action_type='LIKE', scroll_depth=0.85, metadata.source='e2e' at position=3, found: ${LIKE_AT_POS3}"
+  info "The interaction may not have been persisted with canonical ActionType + P2 columns."
+  info "Check: P1 ActionType.kt (canonical 6), P2 migration (scroll_depth+metadata), InteractionProcessor."
 fi
 
 # Verify: other rows have NULL action_type (no spurious matches)
