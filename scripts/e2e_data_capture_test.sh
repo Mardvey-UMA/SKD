@@ -142,7 +142,7 @@ FEED_RESPONSE=$(curl -si \
   "${GATEWAY}/api/feed" \
   -H "Authorization: Bearer ${TOKEN}")
 
-HTTP_STATUS=$(echo "$FEED_RESPONSE" | head -1 | grep -oP '\d{3}' | head -1)
+HTTP_STATUS=$(awk 'NR==1 { match($0,/[0-9][0-9][0-9]/); print substr($0,RSTART,3); exit }' <<< "$FEED_RESPONSE")
 if [ "$HTTP_STATUS" = "200" ]; then
   pass "GET /api/feed returned HTTP 200"
 else
@@ -151,7 +151,7 @@ else
 fi
 
 # Extract X-Request-Id from response headers (case-insensitive)
-REQUEST_ID=$(echo "$FEED_RESPONSE" | grep -i '^x-request-id:' | awk '{print $2}' | tr -d '\r\n')
+REQUEST_ID=$(awk 'tolower($1)=="x-request-id:" { gsub(/\r/,"",$2); print $2; exit }' <<< "$FEED_RESPONSE")
 if [ -n "$REQUEST_ID" ]; then
   pass "X-Request-Id header present: ${REQUEST_ID}"
 else
@@ -162,7 +162,7 @@ else
 fi
 
 # Extract X-Feed-Source header
-FEED_SOURCE=$(echo "$FEED_RESPONSE" | grep -i '^x-feed-source:' | awk '{print $2}' | tr -d '\r\n')
+FEED_SOURCE=$(awk 'tolower($1)=="x-feed-source:" { gsub(/\r/,"",$2); print $2; exit }' <<< "$FEED_RESPONSE")
 if [ -n "$FEED_SOURCE" ]; then
   pass "X-Feed-Source header present: ${FEED_SOURCE}"
 else
@@ -170,7 +170,7 @@ else
 fi
 
 # Extract JSON body (everything after the blank line)
-FEED_BODY=$(echo "$FEED_RESPONSE" | awk '/^\r?$/,0' | tail -n +2)
+FEED_BODY=$(awk 'found { print; next } /^\r?$/ { found=1 }' <<< "$FEED_RESPONSE")
 
 # Get the item at 0-based index 2 (= position 3, 1-indexed)
 # ContentBatchItem has an "id" field (not "content_id")
@@ -354,7 +354,7 @@ LEFT JOIN interactions.user_interactions ui
 WHERE fr.request_id = '${REQUEST_ID}'
   AND fi.position = 3
   AND ui.action_type = 'LIKE'
-  AND ui.scroll_depth = 0.85
+  AND abs(ui.scroll_depth - 0.85) < 0.001
   AND ui.metadata->>'source' = 'e2e'" 2>/dev/null | tr -d ' ' || echo "0")
 
 if [ "${LIKE_AT_POS3:-0}" = "1" ]; then
