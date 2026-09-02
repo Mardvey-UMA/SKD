@@ -18,3 +18,6 @@ artifacts/
 # Research data (too large for git)
 telegram_posts.csv
 rec_playground_sample.csv
+
+# Presentation assets (binary, large)
+prezentation/
