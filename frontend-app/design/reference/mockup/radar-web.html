@@ -1,0 +1,710 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Радар — Web</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; background: #DAD9D4; }
+  body {
+    min-height: 100vh;
+    font-family: "Nunito", -apple-system, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    background: radial-gradient(circle at 20% 20%, #E8E9E3 0, #DAD9D4 60%);
+  }
+  * { box-sizing: border-box; }
+  ::-webkit-scrollbar { width: 0; height: 0; }
+
+  .tweaks {
+    position: fixed; right: 18px; bottom: 18px; z-index: 9999;
+    width: 280px; max-height: 70vh; overflow: auto;
+    background: #fff; border-radius: 18px;
+    border: 1px solid rgba(0,0,0,0.08);
+    box-shadow: 0 20px 40px -20px rgba(0,0,0,0.25);
+    padding: 14px; display: none;
+    font-family: "Nunito", system-ui, sans-serif;
+  }
+  .tweaks.open { display: block; }
+  .tweaks h3 {
+    margin: 0 0 10px; font-size: 11px; letter-spacing: 1.2px;
+    text-transform: uppercase; color: #6E6F6A;
+  }
+  .tweaks .row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-top: 1px solid rgba(0,0,0,0.06); }
+  .tweaks .row:first-of-type { border-top: 0; }
+  .tweaks label { font-size: 13px; color: #0E0F0D; font-weight: 500; }
+  .tweaks .swatches { display: flex; gap: 6px; }
+  .tweaks .sw { width: 22px; height: 22px; border-radius: 6px; border: 2px solid transparent; cursor: pointer; }
+  .tweaks .sw.on { border-color: #0E0F0D; }
+  .tab-anim { transition: transform 180ms ease; }
+  .tab-anim:active { transform: scale(0.92); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+  const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+    "accent": "#FF5A1F",
+    "secondary": "#FBBF24",
+    "plan": "premium",
+    "device": "iphone",
+    "forceLoading": false,
+    "emptyBookmarks": false,
+    "emptyLikes": false,
+    "emptyDislikes": false,
+    "adStyle": "card",
+    "adFrequency": 5,
+    "breakpoint": "mobile"
+  }/*EDITMODE-END*/;
+  window.__TWEAKS__ = { ...TWEAK_DEFAULTS };
+</script>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="./ios-frame.jsx"></script>
+<script type="text/babel" src="./android-frame.jsx"></script>
+<script type="text/babel" src="./device-frame.jsx"></script>
+<script type="text/babel" src="./tokens.jsx"></script>
+<script type="text/babel" src="./data.jsx"></script>
+<script type="text/babel" src="./cards.jsx"></script>
+<script type="text/babel" src="./screens.jsx"></script>
+<script type="text/babel" src="./onboarding.jsx"></script>
+
+<script type="text/babel">
+  const { useState, useEffect, useMemo } = React;
+
+  // ─────────────────────────────────────────────────────────────────
+  //  Responsive shell
+  //  This file is functionally identical to Радар.html — same state,
+  //  same screens, same flows. The ONLY difference is how the chrome
+  //  around the app is rendered at different viewport widths:
+  //
+  //    mobile  (<768px)   → device frame + bottom nav  (1:1 with mobile app)
+  //    tablet  (768-1199) → no device frame, phone-shaped panel centered,
+  //                         bottom nav stays as in mobile
+  //    desktop (≥1200px)  → left sidebar with the same 4 tabs, no bottom nav
+  //
+  //  Nothing else about the app is different: screens, sheets, toasts,
+  //  onboarding — all unchanged. A mobile phone opening this URL sees
+  //  the exact same UI as opening Радар.html.
+  // ─────────────────────────────────────────────────────────────────
+
+  function useLayout() {
+    const forced = window.__TWEAKS__?.breakpoint || 'fluid';
+    const [w, setW] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+    useEffect(() => {
+      const fn = () => setW(window.innerWidth);
+      window.addEventListener('resize', fn);
+      return () => window.removeEventListener('resize', fn);
+    }, []);
+    if (forced !== 'fluid') return forced; // forced: desktop / tablet / mobile
+    if (w >= 1200) return 'desktop';
+    if (w >= 768)  return 'tablet';
+    return 'mobile';
+  }
+
+  function inferSourceIdFromItem(item) {
+    if (!item) return null;
+    const name = item.source;
+    const match = SYSTEM_SOURCES.find(s =>
+      s.name === name ||
+      (name === 'Хабр' && s.platform === 'Habr' && s.id === 's-habr') ||
+      (name === 'VC.RU' && s.platform === 'VC.RU' && s.id === 's-vcru') ||
+      (name === 'Telegram' && s.handle === item.sourceHandle)
+    );
+    return match?.id || 's-habr';
+  }
+
+  function applyTweaks(t) {
+    if (t.accent) NF.accent = t.accent;
+    if (t.secondary) NF.lime = t.secondary;
+  }
+  applyTweaks(window.__TWEAKS__);
+
+  const TABS = [
+    { id: 'feed',        label: 'Лента',    icon: 'feed' },
+    { id: 'collections', label: 'Подборки', icon: 'layers' },
+    { id: 'profile',     label: 'Профиль',  icon: 'user' },
+    { id: 'settings',    label: 'Настройки', icon: 'gear' },
+  ];
+
+  // ─── Mobile bottom nav — identical to Радар.html ───
+  function BottomNav({ active, setActive }) {
+    return (
+      <div style={{
+        position: 'absolute', left: 12, right: 12, bottom: 12, zIndex: 40,
+        background: NF.surface, borderRadius: 999,
+        border: `1px solid ${NF.hairline}`,
+        padding: 6, display: 'flex',
+        boxShadow: '0 12px 30px -10px rgba(0,0,0,0.18)',
+        backdropFilter: 'blur(20px)',
+      }}>
+        {TABS.map(t => {
+          const on = active === t.id;
+          return (
+            <div key={t.id} className="tab-anim" onClick={() => setActive(t.id)} style={{
+              flex: 1, display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center', gap: 2,
+              padding: '8px 0', borderRadius: 999,
+              background: on ? NF.ink : 'transparent', cursor: 'pointer',
+            }}>
+              <Icon name={t.icon} size={19} color={on ? '#fff' : NF.ink2}/>
+              <div style={{
+                fontFamily: FONT_SANS,
+                fontSize: 11, letterSpacing: 0.1,
+                color: on ? NF.lime : NF.mute, fontWeight: 700,
+              }}>{t.label}</div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // ─── Desktop left sidebar — same 4 tabs, no invented extras ───
+  function SideNav({ active, setActive }) {
+    return (
+      <aside style={{
+        width: 240, flexShrink: 0, padding: '28px 16px',
+        background: NF.bg, borderRight: `1px solid ${NF.hairline}`,
+        position: 'sticky', top: 0, alignSelf: 'flex-start',
+        height: '100vh', display: 'flex', flexDirection: 'column',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 6px 20px' }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 9, background: NF.ink,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            position: 'relative', overflow: 'hidden',
+          }}>
+            <div style={{ position: 'absolute', inset: 4, borderRadius: 999, border: `1.2px solid ${NF.lime}` }}/>
+            <div style={{
+              position: 'absolute', left: '50%', top: '50%',
+              width: 10, height: 1.2, background: NF.lime,
+              transformOrigin: '0 50%', transform: 'translate(0, -50%) rotate(-30deg)',
+            }}/>
+            <div style={{ width: 3, height: 3, borderRadius: 3, background: NF.lime }}/>
+          </div>
+          <div style={{
+            fontFamily: FONT_SANS, fontWeight: 800, fontSize: 20,
+            letterSpacing: -0.8, color: NF.ink,
+          }}>Радар</div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {TABS.map(t => {
+            const on = active === t.id;
+            return (
+              <div key={t.id} onClick={() => setActive(t.id)} style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '11px 12px', borderRadius: 12, cursor: 'pointer',
+                background: on ? NF.ink : 'transparent',
+                color: on ? '#fff' : NF.ink,
+                transition: 'background 140ms ease',
+              }}>
+                <Icon name={t.icon} size={18} color={on ? '#fff' : NF.ink}/>
+                <span style={{
+                  fontFamily: FONT_SANS, fontSize: 14, fontWeight: 600, letterSpacing: -0.2,
+                }}>{t.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      </aside>
+    );
+  }
+
+  // ─── Responsive frame ───
+  // mobile  → DeviceFrame with BottomNav absolutely positioned inside
+  // tablet  → unbordered phone-shaped column (~420×full-height) with BottomNav
+  // desktop → SideNav + wide column, NO BottomNav, NO device chrome
+  function ResponsiveShell({ layout, device, active, setActive, showBottomNav, children }) {
+    if (layout === 'mobile') {
+      return (
+        <div style={{
+          minHeight: '100vh', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', padding: '28px 16px',
+        }}>
+          <DeviceFrame device={device}>
+            <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}>
+              {children}
+              {showBottomNav && <BottomNav active={active} setActive={setActive}/>}
+            </div>
+          </DeviceFrame>
+        </div>
+      );
+    }
+    if (layout === 'tablet') {
+      return (
+        <div style={{
+          minHeight: '100vh', display: 'flex',
+          alignItems: 'stretch', justifyContent: 'center',
+          padding: '24px 16px',
+        }}>
+          <div style={{
+            width: '100%', maxWidth: 520, minHeight: 'calc(100vh - 48px)',
+            background: NF.bg, borderRadius: 28, overflow: 'hidden',
+            border: `1px solid ${NF.hairline}`,
+            boxShadow: '0 24px 60px -20px rgba(0,0,0,0.18)',
+            position: 'relative',
+          }}>
+            {children}
+            {showBottomNav && <BottomNav active={active} setActive={setActive}/>}
+          </div>
+        </div>
+      );
+    }
+    // desktop
+    return (
+      <div style={{
+        minHeight: '100vh', background: NF.bg,
+        display: 'flex', alignItems: 'stretch',
+      }}>
+        <SideNav active={active} setActive={setActive}/>
+        <main style={{
+          flex: 1, minWidth: 0, position: 'relative', overflow: 'hidden',
+          background: NF.bg,
+        }}>
+          {children}
+        </main>
+      </div>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  //  App — identical to Радар.html
+  // ─────────────────────────────────────────────────────────────────
+  function App() {
+    const layout = useLayout();
+    const initial = (() => {
+      try { return JSON.parse(localStorage.getItem('radar.state') || 'null'); } catch { return null; }
+    })();
+    const [tab, setTab] = useState(initial?.tab ?? 'feed');
+    const [view, setView] = useState(initial?.view ?? null);
+    const [openId, setOpenId] = useState(initial?.openId ?? null);
+    const [onboarding, setOnboarding] = useState(initial?.onboarding ?? 'welcome');
+    const [onboardingTopics, setOnboardingTopics] = useState(initial?.onboardingTopics ?? []);
+    const [plan, setPlan] = useState(initial?.plan ?? (window.__TWEAKS__.plan || 'premium'));
+    const [hiddenAds, setHiddenAds] = useState([]);
+    const [reacts, setReacts] = useState(initial?.reacts ?? (() => {
+      const r = {};
+      FEED.forEach((f, i) => {
+        r[f.id] = { like: i === 2, dislike: false, bookmark: i === 1 || i === 4 };
+      });
+      return r;
+    })());
+    const [prefs, setPrefs] = useState(initial?.prefs ?? ['ИИ', 'Дизайн', 'Климат', 'Лонгриды', 'Кино и сериалы']);
+    const [userCollections, setUserCollections] = useState(initial?.userCollections ?? [
+      { id: 'u1', title: 'ИИ и инфраструктура', desc: 'Глубокие разборы compute-стека', tone: 'accent', count: 42, sources: ['s-habr', 's-habr-ml'] },
+      { id: 'u3', title: 'Репортажи 2026', desc: 'Полевая журналистика, климат, города', tone: 'warn', count: 11, sources: ['s-fields', 's-longform'] },
+    ]);
+    const [customSources, setCustomSources] = useState(initial?.customSources ?? []);
+    const [editingCollection, setEditingCollection] = useState(null);
+    const [hiddenSources, setHiddenSources] = useState(initial?.hiddenSources ?? []);
+    const [menuItem, setMenuItem] = useState(null);
+    const [addToSpaceItem, setAddToSpaceItem] = useState(null);
+    const [toast, setToast] = useState(null);
+
+    const [feedLoading, setFeedLoading] = useState(initial == null);
+    useEffect(() => {
+      if (!feedLoading) return;
+      const t = setTimeout(() => setFeedLoading(false), 1600);
+      return () => clearTimeout(t);
+    }, [feedLoading]);
+    const tweaks = window.__TWEAKS__ || {};
+    const effectiveLoading = feedLoading || !!tweaks.forceLoading;
+
+    useEffect(() => {
+      localStorage.setItem('radar.state', JSON.stringify({
+        tab, view, openId, reacts, prefs, onboarding, onboardingTopics,
+        userCollections, customSources, plan, hiddenSources,
+      }));
+    }, [tab, view, openId, reacts, prefs, onboarding, onboardingTopics, userCollections, customSources, plan, hiddenSources]);
+
+    const toggle = (id, kind) => {
+      setReacts(r => {
+        const s = { ...r[id] };
+        if (kind === 'like') {
+          s.like = !s.like;
+          if (s.like && s.dislike) s.dislike = false;
+        } else if (kind === 'dislike') {
+          s.dislike = !s.dislike;
+          if (s.dislike && s.like) s.like = false;
+        } else if (kind === 'bookmark') {
+          s.bookmark = !s.bookmark;
+        }
+        return { ...r, [id]: s };
+      });
+    };
+
+    const openItem = (item) => { setOpenId(item.id); setView('detail'); };
+    const back = () => { setView(null); setOpenId(null); };
+    const currentItem = openId ? FEED.find(f => f.id === openId) : null;
+
+    const visibleFeed = useMemo(
+      () => FEED.filter(f => !hiddenSources.includes(f.source)),
+      [hiddenSources]
+    );
+
+    const isPremium = plan === 'premium';
+
+    const handleHideSource = () => {
+      if (!menuItem) return;
+      setHiddenSources(hs => hs.includes(menuItem.source) ? hs : [...hs, menuItem.source]);
+      setToast({ text: `Источник «${menuItem.source}» скрыт`, undo: () => {
+        setHiddenSources(hs => hs.filter(s => s !== menuItem.source));
+      }});
+      setTimeout(() => setToast(null), 3400);
+    };
+
+    const handleAddToSpace = () => {
+      if (!isPremium) {
+        setMenuItem(null);
+        setView('plan');
+        return;
+      }
+      setAddToSpaceItem(menuItem);
+      setMenuItem(null);
+    };
+
+    const handleAddExisting = (collectionId) => {
+      const src = inferSourceIdFromItem(addToSpaceItem);
+      setUserCollections(cs => cs.map(c => c.id === collectionId
+        ? { ...c, sources: [...(c.sources || []), src].filter((v, i, a) => a.indexOf(v) === i) }
+        : c));
+      const title = userCollections.find(c => c.id === collectionId)?.title;
+      setAddToSpaceItem(null);
+      setToast({ text: `Источник добавлен в «${title}»` });
+      setTimeout(() => setToast(null), 2600);
+    };
+
+    const handleCreateNewSpace = () => {
+      const src = inferSourceIdFromItem(addToSpaceItem);
+      setEditingCollection({ prefilledSource: src });
+      setAddToSpaceItem(null);
+      setView('collection-edit');
+    };
+
+    let screen;
+    let screenLabel;
+    if (onboarding === 'welcome') {
+      screenLabel = '01 Welcome';
+      screen = <WelcomeScreen
+        onContinue={() => setOnboarding('topics')}
+        onSignup={() => setOnboarding('topics')}
+        onGuest={() => setOnboarding('done')}/>;
+    } else if (onboarding === 'topics') {
+      screenLabel = '02 Onboarding Topics';
+      screen = <OnboardingTopics step={1} totalSteps={1}
+        selected={onboardingTopics} setSelected={setOnboardingTopics}
+        onNext={() => { setOnboarding('done'); if (onboardingTopics.length) setPrefs(onboardingTopics); }}
+        onBack={() => setOnboarding('welcome')}/>;
+    } else if (view === 'detail' && currentItem) {
+      screen = <DetailScreen item={currentItem} react={reacts[currentItem.id]}
+        onBack={back} onToggle={toggle}
+        onOpenRelated={(it) => setOpenId(it.id)}
+        onOpenRelatedAll={() => setView('related-all')}/>;
+    } else if (view === 'related-all' && currentItem) {
+      screen = <RelatedAllScreen current={currentItem} reacts={reacts} onToggle={toggle}
+        onBack={() => setView('detail')} onOpenItem={(it) => { setOpenId(it.id); setView('detail'); }}/>;
+    } else if (view === 'bookmarks') {
+      screen = <BookmarksScreen kind="bookmark" reacts={reacts} onOpen={openItem} onToggle={toggle} onBack={() => setView(null)} forceEmpty={!!tweaks.emptyBookmarks}/>;
+    } else if (view === 'likes') {
+      screen = <BookmarksScreen kind="like" reacts={reacts} onOpen={openItem} onToggle={toggle} onBack={() => setView(null)} forceEmpty={!!tweaks.emptyLikes}/>;
+    } else if (view === 'disliked') {
+      screen = <BookmarksScreen kind="dislike" reacts={reacts} onOpen={openItem} onToggle={toggle} onBack={() => setView(null)} forceEmpty={!!tweaks.emptyDislikes}/>;
+    } else if (view === 'plan') {
+      screen = <PlanScreen onBack={() => setView(null)} plan={plan} setPlan={setPlan}/>;
+    } else if (view === 'sources') {
+      screen = <SourcesScreen onBack={() => setView(null)} customSources={customSources}
+        setCustomSources={setCustomSources}
+        hiddenSources={hiddenSources} setHiddenSources={setHiddenSources}
+        isPremium={isPremium}
+        onAddNew={() => setView(isPremium ? 'add-source' : 'plan')}
+        onOpenMy={() => setView(isPremium ? 'my-sources' : 'plan')}/>;
+    } else if (view === 'add-source') {
+      screen = <AddSourceScreen onBack={() => setView('sources')}
+        onAdd={(s) => { setCustomSources(cs => [...cs, s]); setView('sources'); }}/>;
+    } else if (view === 'my-sources') {
+      screen = <MySourcesScreen onBack={() => setView('sources')}
+        customSources={customSources} setCustomSources={setCustomSources}
+        onAddNew={() => setView(isPremium ? 'add-source' : 'plan')}/>;
+    } else if (view === 'collection-edit') {
+      const editId = editingCollection && typeof editingCollection === 'string' && editingCollection !== 'new' ? editingCollection : null;
+      const existing = editId ? userCollections.find(c => c.id === editId) : null;
+      const prefilled = editingCollection && typeof editingCollection === 'object' ? editingCollection.prefilledSource : null;
+      screen = <CollectionEditorScreen
+        existing={existing} customSources={customSources}
+        prefilledSource={prefilled}
+        onBack={() => { setView(null); setEditingCollection(null); }}
+        onSave={(data) => {
+          if (existing) setUserCollections(cs => cs.map(c => c.id === existing.id ? { ...c, ...data } : c));
+          else setUserCollections(cs => [...cs, { ...data, id: 'u' + Date.now(), count: 0 }]);
+          setView(null); setEditingCollection(null);
+        }}
+        onDelete={() => {
+          if (existing) setUserCollections(cs => cs.filter(c => c.id !== existing.id));
+          setView(null); setEditingCollection(null);
+        }}/>;
+    } else if (tab === 'feed') {
+      screen = <FeedScreen
+        reacts={reacts} items={visibleFeed}
+        onOpen={openItem} onToggle={toggle}
+        onMore={(item) => setMenuItem(item)}
+        isLoading={effectiveLoading}
+        adStyle={tweaks.adStyle || 'subtle'}
+        adFrequency={tweaks.adFrequency || 5}
+        hiddenAds={hiddenAds}
+        onHideAd={(id) => setHiddenAds(prev => [...prev, id])}
+      />;
+    } else if (tab === 'collections') {
+      screen = <CollectionsScreen reacts={reacts} userCollections={userCollections}
+        onCreate={() => { setEditingCollection('new'); setView('collection-edit'); }}
+        onEdit={(c) => { setEditingCollection(c.id); setView('collection-edit'); }}
+        onOpenSystem={(id) => setView(id === 'sys-saved' ? 'bookmarks' : id === 'sys-liked' ? 'likes' : 'disliked')}/>;
+    } else if (tab === 'profile') {
+      screen = <ProfileScreen reacts={reacts} plan={plan}
+        goto={(v) => setView(v)}/>;
+    } else if (tab === 'settings') {
+      screen = <SettingsScreen goto={(v) => setView(v)} plan={plan}/>;
+    }
+
+    // Bottom nav is shown only on mobile/tablet, and only when no modal view
+    // or onboarding step is active. On desktop the side nav is always visible.
+    const showBottomNav = !view && onboarding === 'done';
+
+    const appBody = (
+      <div
+        data-screen-label={
+          screenLabel ? screenLabel :
+          view === 'detail' ? `Detail — ${currentItem?.title?.slice(0,30)}` :
+          view === 'related-all' ? 'Related (all)' :
+          view === 'bookmarks' ? 'Bookmarks' :
+          view === 'plan' ? 'Plan' :
+          view === 'sources' ? 'Sources' :
+          view === 'add-source' ? 'Add source' :
+          view === 'my-sources' ? 'My sources' :
+          view === 'collection-edit' ? 'Space editor' :
+          tab === 'feed' ? '04 Feed' :
+          tab === 'collections' ? '05 Collections' :
+          tab === 'profile' ? '06 Profile' : '07 Settings'
+        }
+        style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}
+      >
+        <div key={onboarding !== 'done' ? onboarding : (view ? view + (openId||'') : tab)} style={{
+          width: '100%', height: '100%', overflow: 'auto',
+          animation: 'fade 260ms ease',
+        }}>
+          {screen}
+        </div>
+        <CardMenu
+          open={!!menuItem} item={menuItem} isPremium={isPremium}
+          onClose={() => setMenuItem(null)}
+          onHideSource={handleHideSource}
+          onAddToSpace={handleAddToSpace}
+        />
+        <AddToSpaceSheet
+          open={!!addToSpaceItem} item={addToSpaceItem}
+          userCollections={userCollections}
+          onClose={() => setAddToSpaceItem(null)}
+          onAddExisting={handleAddExisting}
+          onCreateNew={handleCreateNewSpace}
+        />
+        {toast && (
+          <div style={{
+            position: 'absolute', left: 14, right: 14, bottom: 90, zIndex: 350,
+            padding: '12px 14px', borderRadius: 14,
+            background: '#0E0F0D', color: '#fff',
+            display: 'flex', alignItems: 'center', gap: 10,
+            boxShadow: '0 20px 40px -10px rgba(0,0,0,0.4)',
+            animation: 'fade 220ms ease',
+            maxWidth: 520, marginLeft: 'auto', marginRight: 'auto',
+          }}>
+            <div style={{ flex: 1, fontFamily: FONT_SANS, fontSize: 13, fontWeight: 500 }}>
+              {toast.text}
+            </div>
+            {toast.undo && (
+              <div onClick={() => { toast.undo(); setToast(null); }} style={{
+                fontFamily: FONT_SANS, fontSize: 13, fontWeight: 700,
+                color: NF.lime, cursor: 'pointer', padding: '4px 8px',
+              }}>Вернуть</div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+
+    // Desktop special-case: onboarding takes the whole area too, bottom nav
+    // becomes the side nav which we hide during onboarding for focus.
+    const navActive = tab;
+    const navSet = (t) => { setTab(t); setView(null); };
+
+    if (layout === 'desktop' && onboarding !== 'done') {
+      // During onboarding, don't show the side nav — the welcome/topic
+      // screens provide their own primary CTA.
+      return (
+        <div style={{ minHeight: '100vh', background: NF.bg,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '40px 16px',
+        }}>
+          <div style={{
+            width: '100%', maxWidth: 520, minHeight: 'calc(100vh - 80px)',
+            background: NF.bg, borderRadius: 28, overflow: 'hidden',
+            border: `1px solid ${NF.hairline}`,
+            boxShadow: '0 24px 60px -20px rgba(0,0,0,0.18)',
+            position: 'relative',
+          }}>
+            {appBody}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <ResponsiveShell
+        layout={layout}
+        device={tweaks.device || 'iphone'}
+        active={navActive} setActive={navSet}
+        showBottomNav={showBottomNav && layout !== 'desktop'}
+      >
+        {appBody}
+        <style>{`@keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }`}</style>
+      </ResponsiveShell>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  //  Tweaks — identical to Радар.html + one extra "Экран" selector
+  // ─────────────────────────────────────────────────────────────────
+  function TweaksPanel() {
+    const [t, setT] = useState(window.__TWEAKS__);
+    const [open, setOpen] = useState(true);
+    useEffect(() => {
+      const handler = (e) => {
+        if (e.data?.type === '__activate_edit_mode') setOpen(true);
+        if (e.data?.type === '__deactivate_edit_mode') setOpen(false);
+      };
+      window.addEventListener('message', handler);
+      window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+      return () => window.removeEventListener('message', handler);
+    }, []);
+    const set = (k, v) => {
+      const next = { ...t, [k]: v };
+      setT(next); window.__TWEAKS__ = next;
+      window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { [k]: v } }, '*');
+      if (k === 'accent') NF.accent = v;
+      if (k === 'secondary') NF.lime = v;
+      if (k === 'plan') {
+        try {
+          const st = JSON.parse(localStorage.getItem('radar.state') || '{}');
+          st.plan = v; localStorage.setItem('radar.state', JSON.stringify(st));
+        } catch {}
+      }
+      window.__forceRerender?.();
+    };
+    if (!open) return null;
+    return (
+      <div className="tweaks open">
+        <h3>Tweaks · Web</h3>
+        <div className="row">
+          <label>Экран</label>
+          <select value={t.breakpoint || 'fluid'} onChange={e => set('breakpoint', e.target.value)}>
+            <option value="fluid">Fluid · по окну</option>
+            <option value="desktop">Desktop</option>
+            <option value="tablet">Tablet</option>
+            <option value="mobile">Mobile</option>
+          </select>
+        </div>
+        <div className="row">
+          <label>Акцент</label>
+          <div className="swatches">
+            {['#3B2BFF', '#FF5A1F', '#0E0F0D', '#2563EB'].map(c => (
+              <div key={c} className={'sw' + (t.accent === c ? ' on' : '')} style={{ background: c }} onClick={() => set('accent', c)}/>
+            ))}
+          </div>
+        </div>
+        <div className="row">
+          <label>Доп. цвет</label>
+          <div className="swatches">
+            {['#CCFF33', '#A3E635', '#FBBF24', '#F472B6'].map(c => (
+              <div key={c} className={'sw' + (t.secondary === c ? ' on' : '')} style={{ background: c }} onClick={() => set('secondary', c)}/>
+            ))}
+          </div>
+        </div>
+        <div className="row">
+          <label>Тариф</label>
+          <select value={t.plan || 'premium'} onChange={e => { set('plan', e.target.value); location.reload(); }}>
+            <option value="free">Free</option>
+            <option value="premium">Premium</option>
+          </select>
+        </div>
+        <div className="row">
+          <label>Реклама</label>
+          <select value={t.adStyle || 'subtle'} onChange={e => set('adStyle', e.target.value)}>
+            <option value="off">Выкл</option>
+            <option value="subtle">Тонкая</option>
+            <option value="card">Карточка</option>
+            <option value="banner">Баннер</option>
+          </select>
+        </div>
+        <div className="row">
+          <label>Частота рекламы</label>
+          <select value={t.adFrequency || 5} onChange={e => set('adFrequency', parseInt(e.target.value, 10))}>
+            <option value="3">каждые 3</option>
+            <option value="4">каждые 4</option>
+            <option value="5">каждые 5</option>
+            <option value="7">каждые 7</option>
+            <option value="10">каждые 10</option>
+          </select>
+        </div>
+        <div className="row">
+          <label>Устройство (mobile)</label>
+          <select value={t.device || 'iphone'} onChange={e => set('device', e.target.value)}>
+            <option value="iphone">iPhone</option>
+            <option value="pixel">Pixel</option>
+            <option value="galaxy">Galaxy</option>
+          </select>
+        </div>
+        <div className="row">
+          <label>Сбросить</label>
+          <button onClick={() => { localStorage.removeItem('radar.state'); location.reload(); }}
+            style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(0,0,0,0.12)', background: '#0E0F0D', color: '#fff', cursor: 'pointer' }}>Reset</button>
+        </div>
+        <div style={{ height: 1, background: 'rgba(0,0,0,0.08)', margin: '4px 0 2px' }}/>
+        {[
+          ['forceLoading',   'Лента · загрузка'],
+          ['emptyBookmarks', 'Закладки · пусто'],
+          ['emptyLikes',     'Лайки · пусто'],
+          ['emptyDislikes',  'Дизлайки · пусто'],
+        ].map(([k, lbl]) => (
+          <div key={k} className="row" style={{ paddingTop: 4, paddingBottom: 4 }}>
+            <label>{lbl}</label>
+            <div onClick={() => set(k, !t[k])} style={{
+              width: 32, height: 18, borderRadius: 999,
+              background: t[k] ? '#0E0F0D' : 'rgba(0,0,0,0.12)',
+              position: 'relative', cursor: 'pointer', transition: 'background 180ms',
+            }}>
+              <div style={{
+                position: 'absolute', top: 2, left: t[k] ? 16 : 2,
+                width: 14, height: 14, borderRadius: 999, background: '#fff',
+                transition: 'left 180ms',
+              }}/>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  function Root() {
+    const [, tick] = useState(0);
+    window.__forceRerender = () => tick(x => x + 1);
+    return <><App/><TweaksPanel/></>;
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<Root/>);
+</script>
+</body>
+</html>

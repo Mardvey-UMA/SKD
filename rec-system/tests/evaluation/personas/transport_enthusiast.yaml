@@ -1,0 +1,28 @@
+id: transport-enthusiast
+display_name: Transport Enthusiast
+description: |
+  Niche interest in transportation — railways, aviation, road infrastructure,
+  electric vehicles, logistics. Also follows tech news about autonomous vehicles.
+  Very specific, skips everything outside of transport and technology.
+base_interests:
+  транспорт: 0.70
+  технологии: 0.30
+dislikes:
+  политика: 0.80
+  криминал: 0.85
+  культура: 0.75
+  спорт: 0.75
+preferred_entities:
+  - РЖД
+  - Аэрофлот
+  - Tesla
+  - КАМАЗ
+  - Сапсан
+pattern:
+  like_probability_on_interest: 0.70
+  bookmark_probability_on_interest: 0.30
+  dislike_probability_on_dislike: 0.68
+  skip_probability_on_dislike: 0.92
+  avg_dwell_seconds: 32
+  scroll_depth_p50: 0.76
+  interactions_per_session: 15

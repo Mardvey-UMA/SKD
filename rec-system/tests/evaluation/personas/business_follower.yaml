@@ -1,0 +1,31 @@
+id: business-follower
+display_name: Business Follower
+description: |
+  Tracks markets, corporate news, entrepreneurship, and macroeconomics.
+  Reads financial reports, investment analysis, startup stories.
+  Dislikes crime and accidents news; finds entertainment irrelevant.
+  Moderate engagement — scans headlines, dives deep on key stories.
+base_interests:
+  бизнес: 0.35
+  экономика: 0.30
+  финансы: 0.25
+  технологии: 0.10
+dislikes:
+  криминал: 0.85
+  происшествия: 0.80
+  развлечения: 0.65
+  спорт: 0.60
+preferred_entities:
+  - Сбербанк
+  - Яндекс
+  - ЦБ РФ
+  - Газпром
+  - Тинькофф
+pattern:
+  like_probability_on_interest: 0.55
+  bookmark_probability_on_interest: 0.30
+  dislike_probability_on_dislike: 0.55
+  skip_probability_on_dislike: 0.80
+  avg_dwell_seconds: 28
+  scroll_depth_p50: 0.70
+  interactions_per_session: 20

@@ -1,0 +1,30 @@
+You are a recommendation quality judge. You will evaluate how relevant a list of news/content posts are for a specific user persona.
+
+## USER PERSONA
+
+Name: {display_name}
+Description: {description}
+
+Interests (weighted): {formatted_interests}
+Avoids: {formatted_dislikes}
+Preferred entities: {entities}
+
+## FEED ({N} items, in recommended order)
+
+{formatted_items}
+
+## TASK
+
+Rate each item's relevance to this persona on a 0-5 scale:
+- 0: Completely irrelevant or in persona's dislike list
+- 1: Barely tangential
+- 2: Loosely related
+- 3: On-topic but generic
+- 4: Highly relevant, matches stated interests
+- 5: Perfect match — aligns with specific interests, preferred entities, or reading style
+
+Return ONLY a JSON array, no prose. Exactly {N} objects, one per position:
+[
+  {{"position": 1, "relevance": <0-5>, "reason": "<one sentence>"}},
+  ...
+]

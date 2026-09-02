@@ -1,12 +1,12 @@
-rec-system/
-dedup-system/
-content-aggregation-system/
-frontend/
-frontend-app/
-backend/
 .env
 .mcp.json
 CLAUDE.md
+
+# Subsystem-local noise not covered by their own .gitignore
+**/_integration/
+**/.claude/
+**/CLAUDE.md
+**/.mcp.json
 
 # Ephemeral orchestration + research artifacts
 .claude/

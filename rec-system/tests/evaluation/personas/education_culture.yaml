@@ -1,0 +1,28 @@
+id: education-culture
+display_name: Education and Culture
+description: |
+  Values intellectual enrichment — university news, school reforms, museum events,
+  book reviews, theatrical premieres. Reads both education policy and cultural reviews.
+  Avoids crime, military, and accidents.
+  Thoughtful engagement: moderate dwell, high bookmark rate.
+base_interests:
+  образование: 0.55
+  культура: 0.45
+dislikes:
+  криминал: 0.90
+  армия: 0.85
+  происшествия: 0.80
+  финансы: 0.65
+preferred_entities:
+  - Минпросвещения
+  - МГУ
+  - Большой театр
+  - Эрмитаж
+pattern:
+  like_probability_on_interest: 0.65
+  bookmark_probability_on_interest: 0.40
+  dislike_probability_on_dislike: 0.60
+  skip_probability_on_dislike: 0.85
+  avg_dwell_seconds: 40
+  scroll_depth_p50: 0.82
+  interactions_per_session: 12

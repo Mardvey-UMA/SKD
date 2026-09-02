@@ -1,0 +1,16 @@
+spring:
+  quartz:
+    job-store-type: memory
+    jdbc:
+      initialize-schema: never
+  liquibase:
+    change-log: classpath:changelog/changelog.yaml
+
+gateway:
+  hmac-secret: test-hmac-secret-for-tests
+
+management:
+  prometheus:
+    metrics:
+      export:
+        enabled: true

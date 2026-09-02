@@ -1,0 +1,43 @@
+[project]
+name = "dedup-system"
+version = "0.1.0"
+description = "Content deduplication service for news aggregation"
+requires-python = ">=3.11"
+dependencies = [
+    "psycopg2-binary>=2.9",
+    "numpy>=1.24",
+    "pydantic>=2.0",
+    "alembic>=1.13",
+]
+
+[project.optional-dependencies]
+worker = [
+    "torch>=2.0",
+    "sentence-transformers>=2.2",
+]
+consumer = [
+    "confluent-kafka>=2.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-mock>=3.12",
+    "testcontainers[postgres]>=4.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = [
+    "unit: Unit tests (mocked dependencies)",
+    "integration: Integration tests (real DB via testcontainers)",
+    "e2e: End-to-end tests (full pipeline)",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

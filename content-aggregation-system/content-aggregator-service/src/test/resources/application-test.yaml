@@ -1,0 +1,21 @@
+spring:
+  datasource:
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+      schema: data_flow
+  liquibase:
+    enabled: false
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+
+s3:
+  public-url: http://localhost:9002
+
+logging:
+  level:
+    root: WARN
+    com.contentagg: DEBUG
+    org.springframework.jdbc: DEBUG
+    liquibase: INFO

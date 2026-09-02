@@ -1,0 +1,36 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${TEST_DB_HOST:localhost}:${TEST_DB_PORT:15432}/${TEST_DB_NAME:content_agg_db}?currentSchema=config&stringtype=unspecified
+    username: ${TEST_DB_USER:postgres}
+    password: ${TEST_DB_PASSWORD:postgres}
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+      schema: config
+  liquibase:
+    enabled: true
+    change-log: classpath:changelog/changelog.yaml
+    default-schema: config
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+  kafka:
+    bootstrap-servers: localhost:9092
+    topics:
+      source-config-updated: source.config.updated.test
+    producer:
+      acks: all
+      retries: 1
+  cache:
+    type: caffeine
+    caffeine:
+      spec: maximumSize=100,expireAfterWrite=1m
+
+logging:
+  level:
+    root: WARN
+    com.contentagg: DEBUG
+    org.springframework.jdbc: DEBUG
+    liquibase: INFO

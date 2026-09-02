@@ -1,0 +1,27 @@
+id: science-only
+display_name: Science Only
+description: |
+  Narrow interest in pure science: physics, biology, space, chemistry, mathematics.
+  Ignores all other topics completely — politics, sports, crime are all noise.
+  Deep reader; bookmarks papers and long reads.
+base_interests:
+  наука: 1.00
+dislikes:
+  политика: 0.95
+  спорт: 0.95
+  криминал: 0.95
+  развлечения: 0.90
+  финансы: 0.85
+preferred_entities:
+  - РАН
+  - Роскосмос
+  - ЦЕРН
+  - MIT
+pattern:
+  like_probability_on_interest: 0.75
+  bookmark_probability_on_interest: 0.45
+  dislike_probability_on_dislike: 0.80
+  skip_probability_on_dislike: 0.95
+  avg_dwell_seconds: 60
+  scroll_depth_p50: 0.90
+  interactions_per_session: 10

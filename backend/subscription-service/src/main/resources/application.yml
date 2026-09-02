@@ -1,0 +1,64 @@
+server:
+  port: 8080
+  forward-headers-strategy: framework
+
+spring:
+  application:
+    name: subscription-service
+  liquibase:
+    change-log: classpath:changelog/changelog.yaml
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:5432/${DB_NAME:content_agg_db}?currentSchema=${DB_SCHEMA:subscription}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+    hikari:
+      maximum-pool-size: 15
+      connection-timeout: 5000
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
+    producer:
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+  quartz:
+    job-store-type: jdbc
+    jdbc:
+      initialize-schema: always
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+
+yookassa:
+  shop-id: ${YOOKASSA_SHOP_ID:test-shop}
+  secret-key: ${YOOKASSA_SECRET_KEY:test-secret}
+  api-url: ${YOOKASSA_API_URL:https://api.yookassa.ru/v3}
+  webhook:
+    allowed-cidrs: 185.71.76.0/27,185.71.77.0/27,77.75.153.0/25,77.75.156.11/32,77.75.156.35/32,77.75.154.128/25,2a02:5180::/32
+    dev-mode: ${YOOKASSA_WEBHOOK_DEV_MODE:false}
+
+subscription:
+  reconcile:
+    lazy:
+      enabled: ${SUBSCRIPTION_RECONCILE_LAZY_ENABLED:true}
+      pending-window-minutes: ${SUBSCRIPTION_RECONCILE_LAZY_WINDOW_MIN:15}
+    scheduled:
+      enabled: ${SUBSCRIPTION_RECONCILE_SCHEDULED_ENABLED:true}
+      cron: ${SUBSCRIPTION_RECONCILE_SCHEDULED_CRON:0 * * * * ?}
+      pending-window-minutes: ${SUBSCRIPTION_RECONCILE_SCHEDULED_WINDOW_MIN:30}
+
+app:
+  frontend-url: ${FRONTEND_URL:http://localhost:3000}
+
+gateway:
+  hmac-secret: ${GATEWAY_HMAC_SECRET:test-hmac-secret}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,info,prometheus,metrics"
+  metrics:
+    tags:
+      service: ${spring.application.name}

@@ -1,0 +1,24 @@
+id: breaking-news-chaser
+display_name: Breaking News Chaser
+description: |
+  Driven purely by recency — reads anything that just happened.
+  Covers accidents, incidents, politics, international events equally.
+  Short dwell time: scans headlines, moves on quickly.
+  Very high interaction volume, low like rate (no strong preferences).
+base_interests:
+  происшествия: 0.30
+  политика: 0.25
+  международные новости: 0.25
+  общество: 0.20
+dislikes:
+  природа: 0.40
+  транспорт: 0.35
+preferred_entities: []
+pattern:
+  like_probability_on_interest: 0.25
+  bookmark_probability_on_interest: 0.05
+  dislike_probability_on_dislike: 0.30
+  skip_probability_on_dislike: 0.60
+  avg_dwell_seconds: 8
+  scroll_depth_p50: 0.30
+  interactions_per_session: 60

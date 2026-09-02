@@ -1,0 +1,14 @@
+spring:
+  liquibase:
+    enabled: false
+  datasource:
+    hikari:
+      schema: data_flow
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+
+cache:
+  content:
+    expire-after-write: 1m
+    maximum-size: 100

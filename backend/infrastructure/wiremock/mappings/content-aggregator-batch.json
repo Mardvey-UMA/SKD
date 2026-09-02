@@ -1,0 +1,87 @@
+{
+  "request": {
+    "method": "POST",
+    "urlPath": "/api/v1/content/batch"
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": {
+      "items": {
+        "aaaaaaaa-0001-0000-0000-000000000001": {
+          "id": "aaaaaaaa-0001-0000-0000-000000000001",
+          "title": "Test Article 1",
+          "description": "Description of test article 1",
+          "content": "<p>Full content of article 1</p>",
+          "content_format": "html",
+          "source_type": "telegram",
+          "source_subtype": "channel",
+          "url": "https://t.me/test/1",
+          "published_at": "2026-04-01T10:00:00Z",
+          "author_name": "Test Author",
+          "media": [],
+          "metadata": {},
+          "related_ids": []
+        },
+        "aaaaaaaa-0002-0000-0000-000000000002": {
+          "id": "aaaaaaaa-0002-0000-0000-000000000002",
+          "title": "Test Article 2",
+          "description": "Description of test article 2",
+          "content": "<p>Full content of article 2</p>",
+          "content_format": "html",
+          "source_type": "telegram",
+          "source_subtype": "channel",
+          "url": "https://t.me/test/2",
+          "published_at": "2026-04-02T10:00:00Z",
+          "author_name": "Test Author 2",
+          "media": [],
+          "metadata": {},
+          "related_ids": []
+        },
+        "aaaaaaaa-0003-0000-0000-000000000003": {
+          "id": "aaaaaaaa-0003-0000-0000-000000000003",
+          "title": "Test Article 3",
+          "description": "Description of test article 3",
+          "content": "<p>Full content of article 3</p>",
+          "content_format": "html",
+          "source_type": "rss",
+          "url": "https://example.com/3",
+          "published_at": "2026-04-03T10:00:00Z",
+          "author_name": "Test Author 3",
+          "media": [],
+          "metadata": {},
+          "related_ids": []
+        },
+        "aaaaaaaa-0004-0000-0000-000000000004": {
+          "id": "aaaaaaaa-0004-0000-0000-000000000004",
+          "title": "Test Article 4",
+          "description": "Description of test article 4",
+          "content": "<p>Full content of article 4</p>",
+          "content_format": "html",
+          "source_type": "telegram",
+          "url": "https://t.me/test/4",
+          "published_at": "2026-04-04T10:00:00Z",
+          "author_name": "Test Author 4",
+          "media": [],
+          "metadata": {},
+          "related_ids": []
+        },
+        "aaaaaaaa-0005-0000-0000-000000000005": {
+          "id": "aaaaaaaa-0005-0000-0000-000000000005",
+          "title": "Test Article 5",
+          "description": "Description of test article 5",
+          "content": "<p>Full content of article 5</p>",
+          "content_format": "html",
+          "source_type": "rss",
+          "url": "https://example.com/5",
+          "published_at": "2026-04-05T10:00:00Z",
+          "author_name": "Test Author 5",
+          "media": [],
+          "metadata": {},
+          "related_ids": []
+        }
+      },
+      "not_found": []
+    }
+  }
+}

@@ -1,0 +1,38 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/content_agg_db?currentSchema=feed
+    username: postgres
+    password: postgres
+  liquibase:
+    change-log: classpath:changelog/changelog.yaml
+    default-schema: feed
+    liquibase-schema: public
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      auto-offset-reset: earliest
+
+management:
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+
+gateway:
+  hmac-secret: test-secret-key
+
+internal:
+  hmac-secret: test-internal-secret
+  timestamp-tolerance-seconds: 30
+
+feed:
+  spaces:
+    max-per-user: 10
+    max-limit: 50
+  my-additions:
+    page-size: 20
+    max-limit: 50

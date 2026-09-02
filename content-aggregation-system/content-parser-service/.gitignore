@@ -1,0 +1,12 @@
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+*.log
+.env
+.env.local
+.idea/
+.vscode/
+.DS_Store
+*.swp
+*.swo
+bin/

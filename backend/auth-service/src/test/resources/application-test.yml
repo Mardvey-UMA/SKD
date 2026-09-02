@@ -1,0 +1,60 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/test_auth_db}
+    username: ${SPRING_DATASOURCE_USERNAME:test}
+    password: ${SPRING_DATASOURCE_PASSWORD:test}
+    hikari:
+      data-source-properties:
+        stringtype: unspecified
+  liquibase:
+    change-log: classpath:changelog/changelog.yaml
+  data:
+    redis:
+      host: ${SPRING_REDIS_HOST:localhost}
+      port: ${SPRING_REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  mail:
+    host: localhost
+    port: 3025
+  quartz:
+    job-store-type: memory
+    jdbc:
+      initialize-schema: never
+  security:
+    user:
+      password: test-password
+
+auth:
+  jwt:
+    access-token-ttl: 900
+    refresh-token-ttl: 2592000
+    issuer: auth-service
+    audience: content-platform
+  verification-token-ttl: 86400
+  reset-token-ttl: 3600
+  frontend-url: http://localhost:3000
+  dev-mode: true
+  verification-code-ttl-seconds: 600
+  verification-code-max-attempts: 5
+  verification-attempts-window-seconds: 600
+  verification-resend-cooldown-seconds: 60
+
+gateway:
+  hmac-secret: test-hmac-secret-for-integration-tests
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,info,prometheus,metrics"
+  endpoint:
+    prometheus:
+      enabled: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  health:
+    mail:
+      enabled: false

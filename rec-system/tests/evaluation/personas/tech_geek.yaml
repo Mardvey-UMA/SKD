@@ -1,0 +1,31 @@
+id: tech-geek
+display_name: Technology Enthusiast
+description: |
+  Deeply interested in technology, AI, science breakthroughs, and tech business.
+  Reads long articles about AI models, engineering, space exploration.
+  Actively avoids political content and sports news.
+  Tends to bookmark for later reading, likes articles > 1000 words.
+base_interests:
+  технологии: 0.45
+  наука: 0.30
+  бизнес: 0.15
+  образование: 0.05
+  здоровье: 0.05
+dislikes:
+  политика: 0.90
+  спорт: 0.80
+  развлечения: 0.50
+preferred_entities:
+  - OpenAI
+  - Google
+  - Tesla
+  - SpaceX
+  - Илон Маск
+pattern:
+  like_probability_on_interest: 0.75
+  bookmark_probability_on_interest: 0.25
+  dislike_probability_on_dislike: 0.60
+  skip_probability_on_dislike: 0.85
+  avg_dwell_seconds: 35
+  scroll_depth_p50: 0.80
+  interactions_per_session: 25

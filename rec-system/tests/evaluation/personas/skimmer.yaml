@@ -1,0 +1,22 @@
+id: skimmer
+display_name: Skimmer
+description: |
+  Prefers very short posts and quick reads — summaries, briefs, headlines.
+  Reads across many topics but never stays long enough for deep content.
+  High interaction count but very low scroll depth and dwell time.
+  Rarely bookmarks; mostly impressions with quick close.
+base_interests:
+  общество: 0.25
+  политика: 0.25
+  происшествия: 0.25
+  бизнес: 0.25
+dislikes: {}
+preferred_entities: []
+pattern:
+  like_probability_on_interest: 0.20
+  bookmark_probability_on_interest: 0.03
+  dislike_probability_on_dislike: 0.15
+  skip_probability_on_dislike: 0.50
+  avg_dwell_seconds: 5
+  scroll_depth_p50: 0.15
+  interactions_per_session: 80

@@ -1,0 +1,22 @@
+.claude/
+.mcp.json
+CLAUDE.md
+__pycache__/
+*.pyc
+
+# Data files
+*.npy
+*.parquet
+processing_example/*.json
+.venv/
+.idea/
+design
+.vscode
+
+# Test reports & coverage
+htmlcov/
+report.html
+coverage.xml
+.coverage
+.pytest_cache/
+_integration/

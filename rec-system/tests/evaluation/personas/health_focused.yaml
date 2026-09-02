@@ -1,0 +1,28 @@
+id: health-focused
+display_name: Health Focused
+description: |
+  Follows health topics, medical research, wellness trends, and nutrition science.
+  Also reads general science with a biomedical angle.
+  Avoids crime, military, and political content.
+  Deep reader — scrolls to end on medical articles.
+base_interests:
+  здоровье: 0.65
+  наука: 0.25
+  образование: 0.10
+dislikes:
+  криминал: 0.90
+  армия: 0.85
+  происшествия: 0.80
+  политика: 0.70
+preferred_entities:
+  - Минздрав
+  - ВОЗ
+  - Роспотребнадзор
+pattern:
+  like_probability_on_interest: 0.70
+  bookmark_probability_on_interest: 0.35
+  dislike_probability_on_dislike: 0.65
+  skip_probability_on_dislike: 0.88
+  avg_dwell_seconds: 45
+  scroll_depth_p50: 0.88
+  interactions_per_session: 18

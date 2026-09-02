@@ -1,0 +1,217 @@
+spring:
+  application:
+    name: content-parser-service
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:content_agg_db}?currentSchema=data_flow&stringtype=unspecified
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:20}
+      minimum-idle: ${DB_POOL_MIN_IDLE:10}
+      connection-timeout: ${DB_CONNECTION_TIMEOUT:10000}
+      idle-timeout: ${DB_IDLE_TIMEOUT:300000}
+      max-lifetime: ${DB_MAX_LIFETIME:900000}
+      schema: data_flow
+
+  liquibase:
+    enabled: false
+    change-log: classpath:changelog/changelog.yaml
+    default-schema: data_flow
+    contexts: ${LIQUIBASE_CONTEXTS:production}
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    group-id: ${KAFKA_GROUP_ID:parser-group}
+    topics:
+      source-config-updated: ${KAFKA_TOPIC_SOURCE_CONFIG_UPDATED:source.config.updated}
+    consumer:
+      config-group-id: ${KAFKA_CONFIG_GROUP_ID:parser-config-group}
+      auto-offset-reset: earliest
+      back-off:
+        interval: 1000
+        max-attempts: 3
+
+  quartz:
+    job-store-type: jdbc
+    scheduler-name: ContentParserScheduler
+    startup-delay: 10s
+    overwrite-existing-jobs: true
+    jdbc:
+      initialize-schema: never
+    properties:
+      org.quartz.scheduler.instanceId: AUTO
+      org.quartz.scheduler.instanceName: ContentParserScheduler
+      # NOTE: do NOT set org.quartz.jobStore.class — Spring Boot auto-configures
+      # LocalDataSourceJobStore (wraps JobStoreCMT) with the managed HikariDataSource.
+      # Setting it explicitly bypasses that wiring and Quartz fails with
+      # "SchedulerConfigException: DataSource name not set".
+      org.quartz.jobStore.driverDelegateClass: org.quartz.impl.jdbcjobstore.PostgreSQLDelegate
+      org.quartz.jobStore.tablePrefix: qrtz_
+      org.quartz.jobStore.isClustered: true
+      org.quartz.jobStore.clusterCheckinInterval: 20000
+      org.quartz.jobStore.useProperties: true
+      org.quartz.threadPool.class: org.quartz.simpl.SimpleThreadPool
+      org.quartz.threadPool.threadCount: ${PARSER_QUARTZ_THREAD_COUNT:10}
+      org.quartz.threadPool.threadPriority: 5
+      org.quartz.threadPool.threadNamePrefix: quartz-parser
+
+  cache:
+    type: caffeine
+
+server:
+  port: ${SERVER_PORT:8082}
+  shutdown: graceful
+
+
+s3:
+  endpoint: ${S3_ENDPOINT:http://localhost:9000}
+  access-key: ${S3_ACCESS_KEY:admin}
+  secret-key: ${S3_SECRET_KEY:adminsecretkey}
+  bucket: ${S3_BUCKET:content-media}
+  region: ${S3_REGION:us-east-1}
+  public-url: ${S3_PUBLIC_URL:http://localhost:9002}
+
+config-service:
+  url: ${CONFIG_SERVICE_URL:http://localhost:8081}
+  connection-timeout: 5000
+  read-timeout: 10000
+  poll-interval: ${CONFIG_POLL_INTERVAL:30000}
+  cache-ttl: ${CONFIG_CACHE_TTL:60000}
+
+config:
+  cache-ttl-hours: 24
+
+cache:
+  source-configs:
+    expire-after-write: 30m
+    maximum-size: 1000
+  source-config:
+    expire-after-write: 30m
+    maximum-size: 1000
+
+parser:
+  cron-expression: ${PARSER_CRON_EXPRESSION:0 */5 * * * ?}
+  publish-cron-expression: ${PARSER_PUBLISH_CRON_EXPRESSION:0/30 * * * * ?}
+  publish-batch-size: ${PARSER_PUBLISH_BATCH_SIZE:100}
+  enabled-source-types: ${PARSER_ENABLED_SOURCE_TYPES:HABR,VCRU,TELEGRAM}
+  execute-interval-seconds: ${PARSER_EXECUTE_INTERVAL_SECONDS:5}
+  reclaim-cron-expression: ${PARSER_RECLAIM_CRON_EXPRESSION:0 */1 * * * ?}
+  stale-task-threshold-minutes: ${PARSER_STALE_TASK_THRESHOLD_MINUTES:10}
+  max-retry-count: ${PARSER_MAX_RETRY_COUNT:3}
+  cleaner:
+    enabled: ${PARSER_CLEANER_ENABLED:true}
+    interval-seconds: ${PARSER_CLEANER_INTERVAL_SECONDS:30}
+    batch-size: ${PARSER_CLEANER_BATCH_SIZE:50}
+    thread-pool-size: ${PARSER_CLEANER_THREAD_POOL_SIZE:2}
+    max-input-bytes: ${PARSER_CLEANER_MAX_INPUT_BYTES:5242880}
+  raw-content:
+    max-raw-data-bytes: ${PARSER_RAW_CONTENT_MAX_BYTES:10485760}
+    truncate-content-bytes: ${PARSER_RAW_CONTENT_TRUNCATE_BYTES:2097152}
+  habr:
+    base-url: ${HABR_BASE_URL:https://habr.com}
+    rate-limit: ${HABR_RATE_LIMIT:60}
+  vcru:
+    base-url: ${VCRU_BASE_URL:https://api.vc.ru}
+    image-cdn-url: ${VCRU_IMAGE_CDN_URL:https://leonardo.osnova.io}
+
+telegram:
+  api-id: ${TELEGRAM_API_ID:0}
+  api-hash: ${TELEGRAM_API_HASH:}
+  phone-number: ${TELEGRAM_PHONE_NUMBER:}
+  session-path: ${TELEGRAM_SESSION_PATH:/app/telegram-session}
+  download-path: ${TELEGRAM_DOWNLOAD_PATH:/app/telegram-downloads}
+  request-delay-ms: 1000
+  max-media-size-mb: 50
+  enabled: ${TELEGRAM_ENABLED:false}
+  admin-token: ${TELEGRAM_ADMIN_TOKEN:}
+
+resilience4j:
+  ratelimiter:
+    instances:
+      habr:
+        limitForPeriod: ${RATE_LIMIT_HABR:60}
+        limitRefreshPeriod: 1m
+        timeoutDuration: 0s
+      vcru:
+        limitForPeriod: ${RATE_LIMIT_VCRU:120}
+        limitRefreshPeriod: 1m
+        timeoutDuration: 0s
+
+  circuitbreaker:
+    instances:
+      habr:
+        failureRateThreshold: ${CIRCUIT_BREAKER_FAILURE_RATE:50}
+        waitDurationInOpenState: ${CIRCUIT_BREAKER_WAIT_DURATION:5m}
+        permittedNumberOfCallsInHalfOpenState: 3
+        slidingWindowSize: 10
+      vcru:
+        failureRateThreshold: ${CIRCUIT_BREAKER_FAILURE_RATE:50}
+        waitDurationInOpenState: ${CIRCUIT_BREAKER_WAIT_DURATION:5m}
+        permittedNumberOfCallsInHalfOpenState: 3
+        slidingWindowSize: 10
+
+  retry:
+    instances:
+      habr:
+        maxAttempts: ${RETRY_MAX_ATTEMPTS:3}
+        waitDuration: ${RETRY_WAIT_DURATION:5s}
+        exponentialBackoffMultiplier: 2
+        retryExceptions:
+          - java.net.SocketTimeoutException
+          - org.springframework.web.client.HttpServerErrorException
+      vcru:
+        maxAttempts: ${RETRY_MAX_ATTEMPTS:3}
+        waitDuration: ${RETRY_WAIT_DURATION:5s}
+        exponentialBackoffMultiplier: 2
+        retryExceptions:
+          - java.net.SocketTimeoutException
+          - org.springframework.web.client.HttpServerErrorException
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: ${MANAGEMENT_ENDPOINTS:health,info,metrics,prometheus}
+  endpoint:
+    health:
+      show-details: ${MANAGEMENT_HEALTH_DETAILS:always}
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  tracing:
+    enabled: true
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:1.0}
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4317}
+      transport: grpc
+
+logging:
+  level:
+    root: ${LOG_LEVEL_ROOT:INFO}
+    com.contentagg.parser: ${LOG_LEVEL_APP:DEBUG}
+    org.springframework.kafka: ${LOG_LEVEL_KAFKA:INFO}
+    org.jooq: DEBUG
+    org.hibernate.SQL: ${LOG_LEVEL_SQL:false}
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+springdoc:
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:true}
+    path: /api-docs
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:true}
+    path: /swagger-ui.html
+  show-actuator: true

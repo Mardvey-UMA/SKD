@@ -1,0 +1,50 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: user-service
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:5432/${DB_NAME:content_agg_db}?currentSchema=${DB_SCHEMA:users}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+    hikari:
+      maximum-pool-size: 15
+      connection-timeout: 5000
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
+    consumer:
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+    producer:
+      acks: all
+  quartz:
+    job-store-type: jdbc
+    jdbc:
+      initialize-schema: always
+    properties:
+      org.quartz.jobStore.driverDelegateClass: org.quartz.impl.jdbcjobstore.PostgreSQLDelegate
+  liquibase:
+    change-log: classpath:changelog/changelog.yaml
+
+services:
+  rec-system:
+    url: ${REC_SYSTEM_URL:http://localhost:8000}
+    timeout-ms: 5000
+    retry-max-attempts: ${REC_SYSTEM_MAX_RETRIES:6}
+    retry-delay-ms: ${REC_SYSTEM_RETRY_DELAY_MS:2000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,info,prometheus,metrics"
+  endpoint:
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      service: ${spring.application.name}
+
+gateway:
+  hmac-secret: ${GATEWAY_HMAC_SECRET:test-hmac-secret}

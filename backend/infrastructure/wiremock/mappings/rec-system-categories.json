@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPathPattern": "/categories.*"
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": {
+      "categories": [
+        {"id": "tech", "name": "Technology", "description": "Tech news and articles"},
+        {"id": "science", "name": "Science", "description": "Scientific discoveries"},
+        {"id": "business", "name": "Business", "description": "Business news"},
+        {"id": "health", "name": "Health", "description": "Health and medicine"},
+        {"id": "sports", "name": "Sports", "description": "Sports news"}
+      ],
+      "min_select": 3,
+      "max_select": 5
+    }
+  }
+}

@@ -1,0 +1,28 @@
+id: crime-reader
+display_name: Crime and Incidents Reader
+description: |
+  Fascinated by crime reporting, court cases, police investigations, and accidents.
+  Reads detailed incident reports, criminal investigations, and court verdicts.
+  Avoids economic analysis and science entirely.
+  High engagement on sensational stories; quick skip on boring content.
+base_interests:
+  происшествия: 0.55
+  криминал: 0.45
+dislikes:
+  экономика: 0.85
+  финансы: 0.80
+  наука: 0.75
+  образование: 0.70
+preferred_entities:
+  - МВД
+  - СК России
+  - Прокуратура
+  - ФСИН
+pattern:
+  like_probability_on_interest: 0.60
+  bookmark_probability_on_interest: 0.15
+  dislike_probability_on_dislike: 0.70
+  skip_probability_on_dislike: 0.90
+  avg_dwell_seconds: 25
+  scroll_depth_p50: 0.68
+  interactions_per_session: 30

@@ -1,0 +1,31 @@
+id: entity-focused-musk
+display_name: Elon Musk Follower
+description: |
+  Triggered exclusively by Elon Musk mentions — Tesla, SpaceX, X/Twitter, Neuralink.
+  Reads technology, business, and science articles only when Musk is involved.
+  Strong bookmark behavior on Musk-related content.
+  Ignores articles without relevant entity matches.
+base_interests:
+  технологии: 0.50
+  бизнес: 0.30
+  наука: 0.20
+dislikes:
+  политика: 0.70
+  спорт: 0.80
+  криминал: 0.75
+preferred_entities:
+  - Илон Маск
+  - Tesla
+  - SpaceX
+  - X
+  - Twitter
+  - Neuralink
+  - Starlink
+pattern:
+  like_probability_on_interest: 0.80
+  bookmark_probability_on_interest: 0.40
+  dislike_probability_on_dislike: 0.60
+  skip_probability_on_dislike: 0.90
+  avg_dwell_seconds: 38
+  scroll_depth_p50: 0.82
+  interactions_per_session: 12

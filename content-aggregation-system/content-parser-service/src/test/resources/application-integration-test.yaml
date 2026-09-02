@@ -1,0 +1,116 @@
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+      - org.springframework.boot.autoconfigure.quartz.QuartzAutoConfiguration
+
+  kafka:
+    listener:
+      auto-startup: false
+
+  datasource:
+    # Overridden by @DynamicPropertySource in AbstractIntegrationTest
+    url: jdbc:postgresql://localhost:5432/test?currentSchema=data_flow&stringtype=unspecified
+    username: test
+    password: test
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+
+  liquibase:
+    enabled: true
+    change-log: classpath:changelog/changelog.yaml
+    default-schema: data_flow
+    contexts: test
+
+  quartz:
+    auto-startup: false
+
+s3:
+  endpoint: http://localhost:9000
+  access-key: test
+  secret-key: test
+  bucket: test-bucket
+  region: us-east-1
+  public-url: http://localhost:9000
+
+config-service:
+  url: http://localhost:18081
+  connection-timeout: 1000
+  read-timeout: 1000
+  poll-interval: 60000
+  cache-ttl: 60000
+
+config:
+  cache-ttl-hours: 24
+
+cache:
+  source-configs:
+    expire-after-write: 5m
+    maximum-size: 100
+  source-config:
+    expire-after-write: 5m
+    maximum-size: 100
+
+parser:
+  cron-expression: "0 */5 * * * ?"
+  publish-cron-expression: "0/30 * * * * ?"
+  publish-batch-size: 100
+  enabled-source-types: HABR,VCRU,TELEGRAM
+  execute-interval-seconds: 5
+  reclaim-cron-expression: "0 */1 * * * ?"
+  stale-task-threshold-minutes: 10
+  max-retry-count: 3
+  cleaner:
+    enabled: false
+    interval-seconds: 30
+    batch-size: 50
+    thread-pool-size: 1
+    max-input-bytes: 5242880
+  raw-content:
+    max-raw-data-bytes: 10485760
+    truncate-content-bytes: 2097152
+  habr:
+    base-url: http://localhost:18082
+    rate-limit: 60
+  vcru:
+    base-url: http://localhost:18083
+    image-cdn-url: http://localhost:18084
+
+telegram:
+  api-id: 0
+  api-hash: "test"
+  phone-number: "+70000000000"
+  session-path: /tmp/telegram-session-test
+  download-path: /tmp/telegram-downloads-test
+  request-delay-ms: 100
+  max-media-size-mb: 10
+  enabled: false
+  admin-token: "test-token"
+
+resilience4j:
+  ratelimiter:
+    instances:
+      habr:
+        limitForPeriod: 1000
+        limitRefreshPeriod: 1s
+        timeoutDuration: 0s
+      vcru:
+        limitForPeriod: 1000
+        limitRefreshPeriod: 1s
+        timeoutDuration: 0s
+  circuitbreaker:
+    instances:
+      habr:
+        registerHealthIndicator: false
+      vcru:
+        registerHealthIndicator: false
+  retry:
+    instances:
+      habr:
+        maxAttempts: 1
+        waitDuration: 0s
+      vcru:
+        maxAttempts: 1
+        waitDuration: 0s

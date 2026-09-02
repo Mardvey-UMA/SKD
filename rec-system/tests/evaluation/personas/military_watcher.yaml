@@ -1,0 +1,30 @@
+id: military-watcher
+display_name: Military and Geopolitics Watcher
+description: |
+  Follows military conflicts, defense news, geopolitics, and strategic analysis.
+  Reads about weapon systems, troop movements, and international security.
+  Avoids entertainment and domestic social news.
+  Engaged reader with moderate-high dwell time.
+base_interests:
+  армия: 0.55
+  международные новости: 0.35
+  политика: 0.10
+dislikes:
+  развлечения: 0.90
+  культура: 0.80
+  природа: 0.70
+  транспорт: 0.65
+preferred_entities:
+  - Министерство обороны
+  - НАТО
+  - ВСУ
+  - ВКС России
+  - Генштаб
+pattern:
+  like_probability_on_interest: 0.60
+  bookmark_probability_on_interest: 0.25
+  dislike_probability_on_dislike: 0.70
+  skip_probability_on_dislike: 0.88
+  avg_dwell_seconds: 38
+  scroll_depth_p50: 0.78
+  interactions_per_session: 22

@@ -1,0 +1,28 @@
+id: entertainment-only
+display_name: Entertainment Only
+description: |
+  Comes for culture and entertainment — movies, music, celebrities, gossip.
+  Not interested in hard news, economics, or science.
+  Light engagement pattern: quick reads, many impressions, few bookmarks.
+base_interests:
+  культура: 0.60
+  развлечения: 0.40
+dislikes:
+  политика: 0.85
+  экономика: 0.80
+  армия: 0.90
+  криминал: 0.75
+  финансы: 0.70
+preferred_entities:
+  - Netflix
+  - Pugacheva
+  - Oxxxymiron
+  - Disney
+pattern:
+  like_probability_on_interest: 0.60
+  bookmark_probability_on_interest: 0.10
+  dislike_probability_on_dislike: 0.50
+  skip_probability_on_dislike: 0.85
+  avg_dwell_seconds: 15
+  scroll_depth_p50: 0.45
+  interactions_per_session: 40

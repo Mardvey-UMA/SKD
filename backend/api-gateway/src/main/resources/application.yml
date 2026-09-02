@@ -1,0 +1,87 @@
+server:
+  port: 8080
+  netty:
+    connection-timeout: 5000ms
+
+spring:
+  application:
+    name: api-gateway
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://auth-service:8080/.well-known/jwks.json
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+  web:
+    resources:
+      add-mappings: false
+
+gateway:
+  hmac-secret: ${GATEWAY_HMAC_SECRET:default-dev-secret}
+  default-timeout-ms: ${GATEWAY_DEFAULT_TIMEOUT_MS:25000}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
+    allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+    allowed-headers: Authorization,Content-Type,X-Request-Id
+    exposed-headers: X-Request-Id,Retry-After
+    allow-credentials: true
+    max-age: 3600
+    allow-localhost-wildcard: ${CORS_ALLOW_LOCALHOST_WILDCARD:false}
+  routes:
+    - path-prefix: /api/auth
+      target: http://auth-service:8080
+      public: true
+      strip-prefix: false
+    - path-prefix: /api/users
+      target: http://user-service:8080
+      strip-prefix: false
+    - path-prefix: /api/feed
+      target: http://feed-service:8080
+      strip-prefix: false
+    - path-prefix: /api/interactions
+      target: http://user-interactions-service:8080
+      strip-prefix: false
+    - path-prefix: /api/subscription
+      target: http://subscription-service:8080
+      strip-prefix: false
+    - path-prefix: /webhook/yookassa
+      target: http://subscription-service:8080
+      public: true
+      strip-prefix: false
+    - path-prefix: /api/sources
+      target: http://config-service:8081
+      strip-prefix: false
+    - path-prefix: /api/config
+      target: http://config-service:8081
+      strip-prefix: false
+      required-roles:
+        - SUBSCRIBER
+  rate-limit:
+    capacity: 100
+    window-seconds: 60
+    overdraft: 20
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,info,prometheus,metrics"
+  endpoint:
+    prometheus:
+      enabled: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  metrics:
+    tags:
+      service: ${spring.application.name}
+
+logging:
+  level:
+    com.contentplatform: INFO
+    org.springframework: INFO
+    org.apache.kafka: WARN

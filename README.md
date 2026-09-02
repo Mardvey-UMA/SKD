@@ -7,10 +7,10 @@ Flutter client.
 
 The platform is composed of **five independent subsystems** that share a single
 PostgreSQL database (`content_agg_db`) with strict schema separation. Each subsystem
-lives in its own Git repository and is developed independently; this repository
-(`SKD`) is the **orchestration root** — it holds the cross-service architecture,
-infrastructure manifests, integration specs, and end-to-end test tooling that tie
-the subsystems together.
+is developed independently and owns a well-defined slice of the data plane; this
+repository is a **monorepo** that vendors all five, plus the cross-service
+architecture, infrastructure manifests, integration specs, and end-to-end test
+tooling that tie them together.
 
 ---
 
@@ -287,14 +287,14 @@ content pipeline uses Protobuf.
 
 ```
 SKD/
-├── backend/                       # Kotlin microservices (own .git; only design/ + build scripts tracked here)
+├── backend/                       # Kotlin microservices platform
 │   ├── api-gateway/  auth-service/  user-service/
 │   ├── user-interactions-service/  subscription-service/  feed-service/
 │   └── design/                    # design-driven-development specs
-├── content-aggregation-system/    # Kotlin content pipeline        (own .git — git-ignored here)
-├── dedup-system/                  # Python dedup worker            (own .git — git-ignored here)
-├── rec-system/                    # Python FastAPI recommender     (own .git — git-ignored here)
-├── frontend-app/                  # Flutter client                 (own .git — git-ignored here)
+├── content-aggregation-system/    # Kotlin content pipeline (config, parser, aggregator)
+├── dedup-system/                  # Python dedup worker
+├── rec-system/                    # Python FastAPI recommender
+├── frontend-app/                  # Flutter client (Android + Web)
 │
 ├── infrastructure/
 │   ├── k8s/
@@ -321,8 +321,10 @@ SKD/
 └── rec_playground.ipynb           # recommender experimentation notebook
 ```
 
-> The five subsystem directories each contain a standalone Git repository and are
-> **git-ignored** in this root repo. Clone / pull them individually.
+> Each subsystem keeps its own build tooling, tests, and dev protocol; see the
+> `CLAUDE.md` / `README` inside each directory for project-specific instructions.
+> Large build artifacts, virtualenvs, and model caches are excluded via each
+> subsystem's own `.gitignore`.
 
 ---
 

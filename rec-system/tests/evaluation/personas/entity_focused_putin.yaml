@@ -1,0 +1,29 @@
+id: entity-focused-putin
+display_name: Putin Watcher
+description: |
+  Closely follows Vladimir Putin — speeches, decisions, international reactions.
+  Reads political, international, and military news filtered by Putin mentions.
+  High engagement when the entity matches; skips everything else.
+base_interests:
+  политика: 0.50
+  международные новости: 0.30
+  армия: 0.20
+dislikes:
+  спорт: 0.85
+  развлечения: 0.80
+  транспорт: 0.75
+  природа: 0.70
+preferred_entities:
+  - Путин
+  - Кремль
+  - Президент России
+  - ФСБ
+  - Совет безопасности
+pattern:
+  like_probability_on_interest: 0.70
+  bookmark_probability_on_interest: 0.30
+  dislike_probability_on_dislike: 0.65
+  skip_probability_on_dislike: 0.92
+  avg_dwell_seconds: 42
+  scroll_depth_p50: 0.85
+  interactions_per_session: 20

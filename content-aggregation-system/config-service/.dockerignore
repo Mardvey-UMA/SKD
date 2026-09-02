@@ -1,0 +1,53 @@
+# Build outputs (keep build/libs/ for pre-built JAR)
+bin/
+build/classes/
+build/generated/
+build/reports/
+build/resources/
+build/tmp/
+out/
+target/
+
+# Gradle
+.gradle/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Test outputs
+test-output/
+.gradle-test/
+
+# Documentation
+*.md
+!README.md
+docs/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+
+# Claude artifacts
+.claude/
+.agent/

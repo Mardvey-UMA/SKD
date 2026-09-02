@@ -1,0 +1,29 @@
+id: sports-fan
+display_name: Sports Fan
+description: |
+  Lives and breathes sports — football, hockey, tennis, Olympics.
+  Reads match reports, transfer news, athlete profiles.
+  Completely ignores politics, economics, and culture.
+  High engagement on sports content, fast skip on everything else.
+base_interests:
+  спорт: 1.00
+dislikes:
+  политика: 0.95
+  экономика: 0.90
+  культура: 0.80
+  наука: 0.75
+  финансы: 0.70
+preferred_entities:
+  - ЦСКА
+  - Спартак
+  - Зенит
+  - Овечкин
+  - Сборная России
+pattern:
+  like_probability_on_interest: 0.80
+  bookmark_probability_on_interest: 0.15
+  dislike_probability_on_dislike: 0.70
+  skip_probability_on_dislike: 0.95
+  avg_dwell_seconds: 22
+  scroll_depth_p50: 0.65
+  interactions_per_session: 35

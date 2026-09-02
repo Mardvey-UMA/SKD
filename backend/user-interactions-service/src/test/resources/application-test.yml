@@ -1,0 +1,46 @@
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,info,prometheus,metrics"
+  endpoint:
+    prometheus:
+      enabled: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  metrics:
+    tags:
+      service: user-interactions-service
+
+spring:
+  datasource:
+    hikari:
+      schema: interactions
+  liquibase:
+    change-log: classpath:changelog/changelog.yaml
+    default-schema: interactions
+    liquibase-schema: public
+  kafka:
+    producer:
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+  quartz:
+    job-store-type: memory
+
+interactions:
+  batch:
+    flush-interval-ms: 1000
+    max-events-per-user: 5
+  validation:
+    max-events-per-batch: 100
+    max-timestamp-future-sec: 60
+    max-timestamp-age-hours: 24
+  partition:
+    retention-months: 6
+
+gateway:
+  hmac-secret: test-hmac-secret

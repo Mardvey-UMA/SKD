@@ -1,0 +1,35 @@
+<configuration scan="false">
+  <springProfile name="!test">
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+      <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+        <timeZone>UTC</timeZone>
+        <timestampPattern>yyyy-MM-dd'T'HH:mm:ss.SSSX</timestampPattern>
+        <customFields>{"service":"user-interactions-service","environment":"${ENV:-development}"}</customFields>
+        <includeMdcKeyName>request_id</includeMdcKeyName>
+        <includeMdcKeyName>user_id</includeMdcKeyName>
+        <fieldNames>
+          <timestamp>@timestamp</timestamp>
+          <logger>logger_name</logger>
+          <thread>thread_name</thread>
+          <message>message</message>
+          <stackTrace>stack_trace</stackTrace>
+        </fieldNames>
+      </encoder>
+    </appender>
+    <root level="INFO">
+      <appender-ref ref="STDOUT"/>
+    </root>
+    <logger name="org.springframework" level="INFO"/>
+    <logger name="org.apache.kafka" level="WARN"/>
+  </springProfile>
+  <springProfile name="test">
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+      <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+        <pattern>%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern>
+      </encoder>
+    </appender>
+    <root level="INFO">
+      <appender-ref ref="STDOUT"/>
+    </root>
+  </springProfile>
+</configuration>

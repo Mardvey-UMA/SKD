@@ -1,0 +1,115 @@
+spring:
+  application:
+    name: config-service
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:content_agg_db}?currentSchema=config&stringtype=unspecified
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:20}
+      minimum-idle: ${DB_POOL_MIN_IDLE:10}
+      connection-timeout: ${DB_CONNECTION_TIMEOUT:10000}
+      idle-timeout: ${DB_IDLE_TIMEOUT:300000}
+      max-lifetime: ${DB_MAX_LIFETIME:900000}
+      schema: config
+  liquibase:
+    enabled: false
+  cache:
+    type: caffeine
+    caffeine:
+      spec: maximumSize=1000,expireAfterWrite=5m
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      timeout: ${SPRING_DATA_REDIS_TIMEOUT:2000ms}
+      connect-timeout: ${SPRING_DATA_REDIS_CONNECT_TIMEOUT:2000ms}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    topics:
+      source-config-updated: ${KAFKA_TOPIC_SOURCE_CONFIG_UPDATED:source.config.updated}
+      source-added: ${KAFKA_TOPIC_SOURCE_ADDED:source.added}
+    producer:
+      acks: ${KAFKA_PRODUCER_ACKS:all}
+      retries: ${KAFKA_PRODUCER_RETRIES:3}
+    consumer:
+      group-id: ${KAFKA_CONFIG_CATALOG_CACHE_GROUP:config-catalog-cache-group}
+      auto-offset-reset: latest
+
+server:
+  port: ${SERVER_PORT:8081}
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: ${MANAGEMENT_ENDPOINTS:health,info,metrics,prometheus}
+  endpoint:
+    health:
+      show-details: ${MANAGEMENT_HEALTH_DETAILS:always}
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  tracing:
+    enabled: true
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:1.0}
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4317}
+      transport: grpc
+
+logging:
+  level:
+    root: ${LOG_LEVEL_ROOT:INFO}
+    com.contentagg: ${LOG_LEVEL_APP:DEBUG}
+    org.springframework.kafka: ${LOG_LEVEL_KAFKA:INFO}
+    org.hibernate.SQL: ${LOG_LEVEL_SQL:OFF}
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+springdoc:
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:true}
+    path: /api-docs
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:true}
+    path: /swagger-ui.html
+  show-actuator: true
+
+catalog:
+  cache-ttl-seconds: ${CATALOG_CACHE_TTL_SECONDS:300}
+  default-page-size: ${CATALOG_DEFAULT_PAGE_SIZE:20}
+  max-page-size: ${CATALOG_MAX_PAGE_SIZE:50}
+  version-key: ${CATALOG_VERSION_KEY:sources:catalog:version}
+  key-prefix: ${CATALOG_KEY_PREFIX:sources:list}
+
+integration:
+  internal-api-token: ${INTERNAL_API_TOKEN:}
+  parser-service:
+    base-url: ${PARSER_SERVICE_URL:http://content-parser-service:8082}
+    connect-timeout-ms: ${PARSER_SERVICE_CONNECT_TIMEOUT_MS:2000}
+    read-timeout-ms: ${PARSER_SERVICE_READ_TIMEOUT_MS:5000}
+  feed-service:
+    base-url: ${FEED_SERVICE_URL:http://feed-service:8080}
+    connect-timeout-ms: ${FEED_SERVICE_CONNECT_TIMEOUT_MS:2000}
+    read-timeout-ms: ${FEED_SERVICE_READ_TIMEOUT_MS:3000}
+    max-attempts: ${FEED_SERVICE_MAX_ATTEMPTS:3}
+    retry-backoff-ms: ${FEED_SERVICE_RETRY_BACKOFF_MS:200}
+
+source-limit:
+  enabled: ${SOURCE_LIMIT_ENABLED:true}
+  per-user: ${SOURCE_LIMIT_PER_USER:20}
+
+telegram:
+  channel-validation:
+    enabled: ${TELEGRAM_CHANNEL_VALIDATION_ENABLED:true}
+    max-attempts: ${TELEGRAM_CHANNEL_VALIDATION_MAX_ATTEMPTS:3}
+    retry-backoff-ms: ${TELEGRAM_CHANNEL_VALIDATION_RETRY_BACKOFF_MS:200}

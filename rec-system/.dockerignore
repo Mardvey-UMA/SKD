@@ -1,0 +1,43 @@
+# Python
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+coverage.xml
+report.html
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Claude artifacts
+.claude/
+_artifacts/
+_integration/
+CLAUDE.md
+
+# Docs
+docs/
+*.md
+
+# Test artifacts
+tests/__pycache__/
+tests/.pytest_cache/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/

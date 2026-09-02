@@ -1,0 +1,21 @@
+id: cold-start-empty
+display_name: Cold Start (No History)
+description: |
+  New user with zero interaction history — only onboarding categories provided.
+  Used to test cold-start recommendation quality.
+  No real engagement pattern; interactions_per_session=0 means no simulated events.
+  Onboarding categories indicate broad interest in technology and science.
+base_interests:
+  технологии: 0.50
+  наука: 0.30
+  образование: 0.20
+dislikes: {}
+preferred_entities: []
+pattern:
+  like_probability_on_interest: 0.00
+  bookmark_probability_on_interest: 0.00
+  dislike_probability_on_dislike: 0.00
+  skip_probability_on_dislike: 0.00
+  avg_dwell_seconds: 0
+  scroll_depth_p50: 0.00
+  interactions_per_session: 0

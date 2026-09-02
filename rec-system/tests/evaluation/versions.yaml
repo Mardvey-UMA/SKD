@@ -1,0 +1,21 @@
+versions:
+  baseline:
+    description: "Current production configuration"
+    env: {}
+    rec_config_overrides: {}
+
+  live_profile:
+    description: "Live profile recomputation from recent events (placeholder — not yet implemented)"
+    env:
+      REC_FEED_USE_LIVE_PROFILE: "true"
+    rec_config_overrides:
+      live_profile_blend: 0.6
+
+  rerank:
+    description: "With cross-encoder reranking (placeholder)"
+    env:
+      REC_FEED_USE_LIVE_PROFILE: "true"
+      REC_RERANK_ENABLED: "true"
+    rec_config_overrides:
+      rerank_top_k: 100
+      rerank_weight: 0.5

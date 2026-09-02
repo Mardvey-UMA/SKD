@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package com.contentagg.config;
+
+option java_package = "com.contentagg.config.proto";
+option java_outer_classname = "SourceEventsProto";
+option java_multiple_files = true;
+
+enum SourceEventType {
+  SOURCE_EVENT_TYPE_UNSPECIFIED = 0;
+  CREATED = 1;
+  UPDATED = 2;
+  DELETED = 3;
+}
+
+message SourceConfigUpdatedEvent {
+  string id = 1;
+  SourceEventType event_type = 2;
+  string source_type = 3;
+  string name = 4;
+  bool is_active = 5;
+  int64 timestamp_ms = 6;
+}

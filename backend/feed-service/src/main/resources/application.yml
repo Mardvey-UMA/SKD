@@ -1,0 +1,78 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: feed-service
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:postgres}:5432/${DB_NAME:content_agg_db}?currentSchema=${DB_SCHEMA:feed}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+    hikari:
+      maximum-pool-size: 15
+      connection-timeout: 5000
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKERS:kafka:9092}
+    consumer:
+      group-id: feed-service-invalidation
+      auto-offset-reset: latest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+  liquibase:
+    change-log: classpath:changelog/changelog.yaml
+    default-schema: feed
+
+services:
+  rec-system:
+    url: http://${REC_SYSTEM_HOST:rec-system}:8000
+  content-aggregation:
+    url: http://${CONTENT_AGG_HOST:content-aggregation-system}:8086
+
+feed:
+  page-size: 20
+  overfetch-buffer: 10
+  max-fetch-iterations: 5
+  cache:
+    feed-ttl-minutes: 30
+    content-ttl-hours: 24
+    related-ttl-hours: 2
+    negative-cache-ttl-minutes: 5
+  prefetch:
+    trigger-percent: 50
+    batch-size: 120
+  spaces:
+    max-per-user: ${FEED_SPACES_MAX_PER_USER:10}
+    max-limit: 50
+    cache:
+      ttl-minutes: 30
+  my-additions:
+    page-size: 20
+    max-limit: 50
+
+gateway:
+  hmac-secret: ${GATEWAY_HMAC_SECRET:dev-secret-key}
+
+internal:
+  hmac-secret: ${INTERNAL_HMAC_SECRET:dev-internal-secret}
+  timestamp-tolerance-seconds: 30
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,info,prometheus,metrics"
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      service: ${spring.application.name}

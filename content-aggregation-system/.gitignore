@@ -1,0 +1,38 @@
+# Environment files (secrets)
+**/.env
+!**/.env.example
+
+# Ignore Gradle project-specific cache directory
+GEMINI.md
+CLAUDE.md
+.opencode
+opencode.json
+.gradle
+.claude
+.mcp.json
+mydocs/
+.agent/
+# Ignore Gradle build output directory
+build
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Application
+application-local.yml
+application-dev.yml
+_integration/

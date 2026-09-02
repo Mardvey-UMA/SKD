@@ -1,0 +1,34 @@
+spring:
+  liquibase:
+    change-log: classpath:changelog/changelog.yaml
+  quartz:
+    job-store-type: memory
+    jdbc:
+      initialize-schema: never
+  kafka:
+    bootstrap-servers: ${spring.kafka.bootstrap-servers:localhost:9092}
+    producer:
+      acks: all
+
+yookassa:
+  shop-id: test-shop-id
+  secret-key: test-secret-key
+  api-url: http://localhost:${wiremock.server.port:8089}/v3
+
+gateway:
+  hmac-secret: test-hmac-secret-for-integration-tests
+
+outbox:
+  poller:
+    fixed-delay-ms: 86400000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+

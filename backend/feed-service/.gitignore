@@ -1,0 +1,32 @@
+# Claude Code config (injected, not tracked)
+.claude/
+CLAUDE.md
+_tasks/
+.mcp.json
+
+# Gradle
+build/
+.gradle/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Kotlin
+*.class
+*.jar
+*.war
+
+# Logs
+*.log
+
+# Kotlin
+.kotlin/
+bin/
+_integration/

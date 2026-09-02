@@ -1,0 +1,30 @@
+id: political-junkie
+display_name: Political Junkie
+description: |
+  Obsessed with politics at all levels — domestic, international, election coverage.
+  Reads opinion pieces, political analysis, government decisions.
+  Avoids entertainment and sports entirely.
+  Likes and bookmarks articles about specific political figures.
+base_interests:
+  политика: 0.55
+  международные новости: 0.25
+  общество: 0.10
+  экономика: 0.10
+dislikes:
+  спорт: 0.90
+  развлечения: 0.85
+  транспорт: 0.70
+preferred_entities:
+  - Путин
+  - Байден
+  - Зеленский
+  - Госдума
+  - Кремль
+pattern:
+  like_probability_on_interest: 0.65
+  bookmark_probability_on_interest: 0.20
+  dislike_probability_on_dislike: 0.75
+  skip_probability_on_dislike: 0.90
+  avg_dwell_seconds: 40
+  scroll_depth_p50: 0.85
+  interactions_per_session: 30

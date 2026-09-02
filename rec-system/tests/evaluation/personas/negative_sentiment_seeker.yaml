@@ -1,0 +1,28 @@
+id: negative-sentiment-seeker
+display_name: Negative Sentiment Seeker
+description: |
+  Gravitates toward negative, alarming, or conflict-heavy content.
+  Reads crime, accidents, political scandals, military conflicts.
+  Avoids positive lifestyle, culture, and entertainment content.
+  Doom-scrolling pattern: high volume, moderate dwell, rare likes.
+base_interests:
+  криминал: 0.30
+  происшествия: 0.25
+  армия: 0.20
+  политика: 0.25
+dislikes:
+  развлечения: 0.85
+  культура: 0.75
+  природа: 0.65
+  здоровье: 0.55
+preferred_entities:
+  - МВД
+  - СК России
+pattern:
+  like_probability_on_interest: 0.30
+  bookmark_probability_on_interest: 0.08
+  dislike_probability_on_dislike: 0.65
+  skip_probability_on_dislike: 0.88
+  avg_dwell_seconds: 20
+  scroll_depth_p50: 0.55
+  interactions_per_session: 45

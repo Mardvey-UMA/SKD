@@ -1,0 +1,34 @@
+# Gradle
+.gradle/
+**/build/
+!src/**/build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Env / secrets
+**/.env
+!**/.env.example
+application-local.yml
+application-dev.yml
+
+# Orchestration scratch
+_integration/
+.claude/
+CLAUDE.md
+.mcp.json

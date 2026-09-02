@@ -1,0 +1,59 @@
+# Benchmark: {{ tag }}
+
+**Run date**: {{ timestamp }}
+**Duration**: {{ duration_minutes }} min
+**Total cost**: ${{ "%.2f"|format(total_cost) }}
+**Combinations**: {{ n_personas }} personas × {{ n_versions }} versions × {{ n_runs }} runs = {{ total_runs }}
+**Git commit**: {{ git_commit }}
+
+## Executive Summary
+
+{% if n_versions > 1 %}
+| Persona | {% for v in versions %}{{ v }} LLM avg | {% endfor %}
+|---------|{% for v in versions %}------------------|{% endfor %}
+{% for persona_id in persona_ids %}
+| {{ persona_id }} | {% for v in versions %}{{ per_version[v][persona_id].llm_mean|default('—', true) }} | {% endfor %}
+{% endfor %}
+{% else %}
+| Persona | LLM avg | nDCG@10 | Topic entropy | Freshness (h) |
+|---------|---------|---------|---------------|---------------|
+{% for persona_id in persona_ids %}
+| {{ persona_id }} | {{ per_persona[persona_id].llm_mean|default('—', true) }} | {{ per_persona[persona_id].llm_ndcg_at_10|default('—', true) }} | {{ "%.2f"|format(per_persona[persona_id].topic_entropy) }} | {{ "%.1f"|format(per_persona[persona_id].freshness_h) }} |
+{% endfor %}
+{% endif %}
+
+## Per-version detailed tables
+{% for v in versions %}
+### {{ v }}
+
+| Persona | LLM mean | LLM median | nDCG@10 | Entropy | Coverage | Distance | Dedup pairs |
+|---------|----------|------------|---------|---------|----------|----------|-------------|
+{% for persona_id in persona_ids %}
+| {{ persona_id }} | {{ per_version[v][persona_id].llm_mean|default('—', true) }} | {{ per_version[v][persona_id].llm_median|default('—', true) }} | {{ per_version[v][persona_id].llm_ndcg_at_10|default('—', true) }} | {{ "%.2f"|format(per_version[v][persona_id].topic_entropy) }} | {{ per_version[v][persona_id].topic_coverage }} | {{ "%.2f"|format(per_version[v][persona_id].distance_to_profile_avg) }} | {{ per_version[v][persona_id].dedup_pair_count }} |
+{% endfor %}
+{% endfor %}
+
+## Cost breakdown
+
+Model: {{ judge_model|default('—', true) }}
+Input tokens: {{ input_tokens|default(0, true) }}
+Output tokens: {{ output_tokens|default(0, true) }}
+Cost: ${{ "%.2f"|format(total_cost) }}
+
+## Known issues
+
+{% if errors %}
+{% for e in errors %}- {{ e }}
+{% endfor %}
+{% else %}
+None.
+{% endif %}
+
+## Reproducibility
+
+- Seed: {{ seed }}
+- rec-system commit: {{ git_commit }}
+- rec_config snapshot: config_snapshot.yaml
+- Personas snapshot: personas_snapshot.yaml
+
+To reproduce: `uv run python scripts/benchmark.py --tag {{ tag }} --seed {{ seed }} ...`

@@ -1,0 +1,46 @@
+# --- Stage 1: Build ---
+FROM eclipse-temurin:21-jdk-alpine AS builder
+WORKDIR /build
+
+RUN apk add --no-cache bash
+
+COPY gradle/ gradle/
+COPY gradlew settings.gradle.kts build.gradle.kts gradle.properties ./
+RUN chmod +x gradlew && ./gradlew dependencies --no-daemon || true
+
+COPY src/ src/
+RUN ./gradlew bootJar --no-daemon -x test
+
+# --- Stage 2: Create minimal JRE via jlink ---
+RUN $JAVA_HOME/bin/jlink \
+    --add-modules java.base,java.compiler,java.desktop,java.instrument,java.logging,java.management,java.naming,java.net.http,java.prefs,java.rmi,java.scripting,java.security.jgss,java.security.sasl,java.sql,java.sql.rowset,java.transaction.xa,java.xml,java.xml.crypto,jdk.crypto.ec,jdk.management,jdk.net,jdk.unsupported,jdk.zipfs \
+    --strip-debug \
+    --no-man-pages \
+    --no-header-files \
+    --compress zip-6 \
+    --output /custom-jre
+
+# --- Stage 3: Minimal runtime ---
+FROM alpine:3.21
+WORKDIR /app
+
+# gcompat needed for jlink JRE on Alpine
+RUN apk add --no-cache gcompat libstdc++ wget
+
+RUN addgroup -S spring && adduser -S spring -G spring
+
+COPY --from=builder /custom-jre /opt/jre
+COPY --from=builder /build/build/libs/*.jar app.jar
+
+ENV JAVA_HOME=/opt/jre
+ENV PATH="$JAVA_HOME/bin:$PATH"
+
+RUN chown -R spring:spring /app
+USER spring:spring
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+
+ENTRYPOINT ["java", "-jar", "app.jar"]

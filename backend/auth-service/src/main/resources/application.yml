@@ -1,0 +1,81 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: auth-service
+  liquibase:
+    change-log: classpath:changelog/changelog.yaml
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:5432/${DB_NAME:content_agg_db}?currentSchema=${DB_SCHEMA:auth}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+    hikari:
+      maximum-pool-size: 20
+      connection-timeout: 5000
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
+    consumer:
+      group-id: auth-service-subscriptions
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+    producer:
+      acks: all
+  mail:
+    host: ${SMTP_HOST:smtp.yandex.ru}
+    port: ${SMTP_PORT:465}
+    username: ${SMTP_USER:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+          starttls:
+            enable: false
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
+  quartz:
+    job-store-type: jdbc
+    jdbc:
+      initialize-schema: always
+
+auth:
+  jwt:
+    access-token-ttl: 86400
+    refresh-token-ttl: 2592000
+    issuer: auth-service
+    audience: content-platform
+  verification-token-ttl: 86400
+  reset-token-ttl: 3600
+  frontend-url: ${FRONTEND_URL:http://localhost:3000}
+  dev-mode: ${AUTH_DEV_MODE:false}
+  verification-code-ttl-seconds: ${AUTH_VERIFICATION_CODE_TTL:600}
+  verification-code-max-attempts: ${AUTH_VERIFICATION_MAX_ATTEMPTS:5}
+  verification-attempts-window-seconds: ${AUTH_VERIFICATION_ATTEMPTS_WINDOW:600}
+  verification-resend-cooldown-seconds: ${AUTH_VERIFICATION_RESEND_COOLDOWN:60}
+
+gateway:
+  hmac-secret: ${GATEWAY_HMAC_SECRET:test-hmac-secret}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,info,prometheus,metrics"
+  endpoint:
+    prometheus:
+      enabled: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  metrics:
+    tags:
+      service: ${spring.application.name}

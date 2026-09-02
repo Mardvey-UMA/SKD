@@ -1,0 +1,26 @@
+id: long-form-reader
+display_name: Long-Form Reader
+description: |
+  Prefers deep, investigative, long-form content over headlines.
+  Interested in science, society analysis, culture reviews.
+  High dwell time and scroll depth — actually reads articles end-to-end.
+  Bookmarks heavily; rarely dislikes unless content is very shallow.
+base_interests:
+  наука: 0.30
+  общество: 0.30
+  культура: 0.20
+  образование: 0.20
+dislikes:
+  происшествия: 0.60
+  криминал: 0.55
+preferred_entities:
+  - Новая газета
+  - Медуза
+pattern:
+  like_probability_on_interest: 0.65
+  bookmark_probability_on_interest: 0.50
+  dislike_probability_on_dislike: 0.40
+  skip_probability_on_dislike: 0.70
+  avg_dwell_seconds: 90
+  scroll_depth_p50: 0.95
+  interactions_per_session: 8

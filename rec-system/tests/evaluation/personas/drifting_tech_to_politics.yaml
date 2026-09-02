@@ -1,0 +1,31 @@
+id: drifting-tech-to-politics
+display_name: Drifting from Tech to Politics
+description: |
+  Starts as a technology enthusiast but gradually shifts interest toward politics
+  after consuming political content. Simulates opinion-formation drift.
+  Phase 1 (first 10 interactions): mainly tech.
+  Phase 2 (after 10 interactions): politics dominates.
+base_interests:
+  технологии: 0.60
+  наука: 0.25
+  бизнес: 0.15
+dislikes:
+  политика: 0.70
+  спорт: 0.60
+preferred_entities:
+  - OpenAI
+  - Google
+drift_phase2:
+  политика: 0.55
+  международные новости: 0.25
+  технологии: 0.15
+  общество: 0.05
+drift_after_interactions: 10
+pattern:
+  like_probability_on_interest: 0.65
+  bookmark_probability_on_interest: 0.20
+  dislike_probability_on_dislike: 0.55
+  skip_probability_on_dislike: 0.80
+  avg_dwell_seconds: 30
+  scroll_depth_p50: 0.72
+  interactions_per_session: 20

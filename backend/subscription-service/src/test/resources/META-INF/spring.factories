@@ -1,0 +1,2 @@
+org.springframework.test.context.TestExecutionListener=\
+  com.skd.subscription.support.KafkaTopicCleanupListener

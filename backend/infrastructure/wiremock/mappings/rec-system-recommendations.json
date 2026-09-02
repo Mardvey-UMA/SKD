@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "POST",
+    "urlPath": "/recommendations"
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": {
+      "user_id": "00000000-0000-0000-0000-000000000001",
+      "items": [
+        "aaaaaaaa-0001-0000-0000-000000000001",
+        "aaaaaaaa-0002-0000-0000-000000000002",
+        "aaaaaaaa-0003-0000-0000-000000000003",
+        "aaaaaaaa-0004-0000-0000-000000000004",
+        "aaaaaaaa-0005-0000-0000-000000000005"
+      ],
+      "count": 5,
+      "generated_at": "2026-04-05T12:00:00Z"
+    }
+  }
+}
